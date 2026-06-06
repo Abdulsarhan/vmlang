@@ -127,6 +127,7 @@ struct ast_node_function_declaration {
     ast_node *callee;
     ast_node **params; // dynamic array.
     ast_node *block;
+    ast_node *return_type;
 };
 
 typedef struct ast_node_function_call ast_node_function_call;

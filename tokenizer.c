@@ -41,7 +41,7 @@ unsigned char eat_char(tokenizer *tokenizer, size_t num_chars_to_eat) {
         tokenizer->at += num_chars_to_eat;
         return current_char;
     }
-    printf("Error: %s(): Tried to eat past end of file. Returning 0.", __func__);
+    printf("Error: %s(): Tried to eat past end of file. Returning 0.\n", __func__);
     return 0;
 }
 
@@ -49,7 +49,7 @@ unsigned char peek_char(const tokenizer *tokenizer, size_t lookahead) {
     if(tokenizer->at + lookahead != tokenizer->end) {
         return *(tokenizer->at + lookahead);
     }
-    printf("Error: %s(): Tried to peek past end of file. Returning 0.", __func__);
+    printf("Error: %s(): Tried to peek past end of file. Returning 0.\n", __func__);
     return 0;
 }
 

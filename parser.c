@@ -124,12 +124,13 @@ ast_node *enum_declaration_node(ast *ast, ast_node *ident, ast_node *block) {
     return node;
 }
 
-ast_node *function_declaration_node(ast *ast, ast_node *ident, ast_node **params, ast_node *block) {
+ast_node *function_declaration_node(ast *ast, ast_node *ident, ast_node **params, ast_node *block, ast_node *return_type) {
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_FUNCTION_DECLARATION;
     node->func_decl.callee = ident;
     node->func_decl.params = params;
     node->func_decl.block = block;
+    node->func_decl.return_type = return_type;
     return node;
 }
 
@@ -574,6 +575,10 @@ ast_node *parse_block(ast *ast, token_stream *tok_stream) {
     node->block.statements = NULL;
     while (peek_token(tok_stream, 0).kind != '}') {
         ast_node *stmt = parse_statement(ast, tok_stream);
+        token tok = peek_token(tok_stream, 0);
+        if(tok.kind == ';') {
+            eat_token(tok_stream, 1);
+        }
         da_push(node->block.statements, stmt);
     }
     eat_token(tok_stream, 1); // }
@@ -636,29 +641,17 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
         }
         case TOKEN_KIND_CONTINUE: {
             eat_token(tok_stream, 1); // continue
-            tok = eat_token(tok_stream, 1);
-            if(tok.kind != ';') {
-                fatal_error("Error: Expected ';' after continue statement.");
-            }
             return continue_node(ast);
             break;
         }
         case TOKEN_KIND_BREAK: {
             eat_token(tok_stream, 1); // break
-            tok = eat_token(tok_stream, 1);
-            if(tok.kind != ';') {
-                fatal_error("Error: Expected ';' after break statement.");
-            }
             return break_node(ast);
             break;
         }
         case TOKEN_KIND_RETURN: {
             eat_token(tok_stream, 1); // return
             ast_node *expression = parse_expression(ast, tok_stream, -9999);
-            tok = eat_token(tok_stream, 1);
-            if(tok.kind != ';') {
-                fatal_error("Error: Expected ';' after return statement.");
-            }
             return return_node(ast, expression);
             break;
         }
@@ -685,8 +678,16 @@ ast_node *parse_function_declaration(ast *ast, token_stream *tok_stream) {
     ast_node *ident = ident_node(ast, tok_stream);
     eat_token(tok_stream, 1); // ::
     ast_node **params = parse_function_parameters(ast, tok_stream);
+    ast_node *return_type = NULL;
+    token tok = peek_token(tok_stream, 0);
+    if(tok.kind == TOKEN_KIND_RIGHT_ARROW) {
+        eat_token(tok_stream, 1);
+        if(peek_token(tok_stream , 0).kind == TOKEN_KIND_IDENTIFIER) {
+            return_type = ident_node(ast, tok_stream);
+        }
+    }
     ast_node *block = parse_block(ast, tok_stream);
-    return function_declaration_node(ast, ident, params, block);
+    return function_declaration_node(ast, ident, params, block, return_type);
 }
 
 ast_node *parse_declaration_of_struct_or_union_or_enum(ast *ast, token_stream *tok_stream) {
