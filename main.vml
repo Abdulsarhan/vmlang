@@ -1,0 +1,22 @@
+print_something :: () {
+    print("hello!\n");
+}
+
+main :: () -> i32 {
+
+    while 1 {
+
+    }
+
+    for 1..10 {
+
+    }
+
+    if 1 {
+
+    }
+    a := 5;
+    b := 5;
+    print_something();
+    return a * b / 2 + 3;
+}

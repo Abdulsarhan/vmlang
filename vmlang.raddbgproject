@@ -1,0 +1,49 @@
+// raddbg 0.9.25 project file
+
+recent_file: path: "vmlc.c"
+recent_file: path: "parser.c"
+recent_file: path: "tokenizer.c"
+recent_file: path: "ds.h"
+recent_file: path: "D:/a/_work/1/s/src/vctools/crt/vcstartup/src/startup/exe_common.inl"
+target:
+{
+  executable: "vmlc.exe"
+  enabled: 1
+  arguments: "main.vml"
+  working_directory: ""
+}
+debug_info:
+{
+  path: "C:/programming/vmlang/vmlc.pdb"
+  timestamp: 66216714039431
+}
+breakpoint:
+{
+  source_location: "vmlc.c:627:1"
+  hit_count: 0
+}
+breakpoint:
+{
+  source_location: "vmlc.c:52:1"
+  hit_count: 1
+}
+breakpoint:
+{
+  source_location: "parser.c:574:1"
+  hit_count: 0
+}
+breakpoint:
+{
+  source_location: "parser.c:461:1"
+  hit_count: 0
+}
+breakpoint:
+{
+  source_location: "parser.c:587:1"
+  hit_count: 0
+}
+breakpoint:
+{
+  source_location: "parser.c:289:1"
+  hit_count: 0
+}
