@@ -20,7 +20,7 @@ void print_ast(ast_node *root, int depth) {
             break;
         case NODE_KIND_RETURN:
             printf("return\n");
-            print_ast(root->return_statement.expression, depth + 1);
+            print_ast(root->return_stmt.expression, depth + 1);
             break;
         case NODE_KIND_FILE:
             printf("file\n");

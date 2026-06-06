@@ -48,16 +48,16 @@ ast_node *continue_node(ast *ast) {
 ast_node *return_node(ast *ast, ast_node *expression) {
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_RETURN;
-    node->return_statement.expression = expression;
+    node->return_stmt.expression = expression;
     return node;
 }
 
 ast_node *if_node(ast *ast, ast_node *cond, ast_node *then_block, ast_node *else_part) {
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_IF;
-    node->if_statement.cond = cond;
-    node->if_statement.then_block = then_block;
-    node->if_statement.else_part = else_part;
+    node->if_stmt.cond = cond;
+    node->if_stmt.then_block = then_block;
+    node->if_stmt.else_part = else_part;
     return node;
 }
 
@@ -560,6 +560,7 @@ ast_node *parse_infix_and_postfix(ast *ast, token_stream *tok_stream, i32 prec, 
         }
         case '(':
             ast_node **params = parse_function_parameters(ast, tok_stream);
+            eat_token(tok_stream , 1); // eat the semicolon after the function call.
             return function_call_node(ast, left, params);
             break;
     }
@@ -612,7 +613,7 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
     switch(tok.kind) {
         case TOKEN_KIND_IF: {
             tok = peek_token(tok_stream, 1);
-            if(tok.kind == '{') {
+            if(tok.kind == TOKEN_KIND_IDENTIFIER || tok.kind == TOKEN_KIND_INT_LITERAL) {
                 return parse_if(ast, tok_stream);
             } else {
                 fatal_error("Error: expected curly brace after \"if\"");
@@ -679,7 +680,6 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
     }
     return NULL;
 }
-
 
 ast_node *parse_function_declaration(ast *ast, token_stream *tok_stream) {
     ast_node *ident = ident_node(ast, tok_stream);

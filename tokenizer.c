@@ -100,6 +100,14 @@ void make_char_token(tokenizer *tokenizer, u64 token_len) {
     eat_char(tokenizer, token_len);
 }
 
+void make_ident(tokenizer *tokenizer, u64 token_len) {
+    token *tok = &tokenizer->tokens[tokenizer->token_count++];
+    tok->kind = TOKEN_KIND_IDENTIFIER;
+    tok->ident_string.data = tokenizer->at;
+    tok->ident_string.length = token_len;
+    eat_char(tokenizer, token_len);
+}
+
 void make_string_token(tokenizer *tokenizer, u64 token_len) {
     token *tok = &tokenizer->tokens[tokenizer->token_count++];
     tok->kind = TOKEN_KIND_STRING_LITERAL;
@@ -193,24 +201,26 @@ token_stream tokenize(tokenizer *tokenizer) {
             case '7':
             case '8':
             case '9': {
-                i32 i = 0;
-                token_kind kind = TOKEN_KIND_INT_LITERAL;
-                b32 found_decimal_point = false;
-                while(1) {
-                    ch = peek_char(tokenizer, i);
-                    if(is_number(ch)) {
-                        i++;
-                    } else if(ch == '.' && !found_decimal_point) {
-                        kind = TOKEN_KIND_FLOAT_LITERAL;
-                        found_decimal_point = true;
-                        i++;
-                    } else if(ch == '.' && found_decimal_point) {
-                        fatal_error("Error: floating point number has multiple decimal points.");
-                        break;
-                    } else {
-                        make_int_token(tokenizer, i);
+                i32 num_len = 0;
+                b32 found_decimal = false;
+                b32 is_float = false;
+                while(is_number(peek_char(tokenizer, num_len)) || peek_char(tokenizer, num_len) == '.') {
+                    ch = peek_char(tokenizer, num_len);
+                    if(ch == '.' && found_decimal) {
+                        num_len--;
+                        is_float = false;
                         break;
                     }
+                    if(ch == '.') {
+                        found_decimal = true;
+                        is_float = true;
+                    }
+                    num_len++;
+                }
+                if(is_float) {
+                    make_float_token(tokenizer, num_len);
+                } else {
+                    make_int_token(tokenizer, num_len);
                 }
                 break;
             }
@@ -416,7 +426,11 @@ token_stream tokenize(tokenizer *tokenizer) {
                             }
                             break;
                     }
-                    make_token(tokenizer, kind, ident_len);
+                    if(kind != TOKEN_KIND_IDENTIFIER) {
+                        make_token(tokenizer, kind, ident_len);
+                    } else {
+                        make_ident(tokenizer, ident_len);
+                    }
                 } else {
                     printf("Error: Unexpected character:");
                 }

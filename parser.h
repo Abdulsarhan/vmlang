@@ -209,8 +209,8 @@ struct ast_node {
 
         ast_node_for for_loop;
         ast_node_while while_loop;
-        ast_node_if if_statement;
-        ast_node_return return_statement;
+        ast_node_if if_stmt;
+        ast_node_return return_stmt;
         ast_node_function_declaration func_decl;
         ast_node_block block;
         ast_node_binop binop;
