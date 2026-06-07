@@ -481,9 +481,6 @@ binop_kind binop_from_token(token tok) {
         case TOKEN_KIND_COLON_COLON:
             kind = BINOP_COLON_COLON;
             break;
-        case TOKEN_KIND_RIGHT_ARROW:
-            kind = BINOP_RIGHT_ARROW;
-            break;
         case TOKEN_KIND_AND_AND:
             kind = BINOP_LOGICAL_AND;
             break;
@@ -517,7 +514,6 @@ ast_node *parse_infix_and_postfix(ast *ast, token_stream *tok_stream, i32 prec, 
         case TOKEN_KIND_EQUAL_EQUAL:
         case TOKEN_KIND_GREATER_THAN_EQUAL:
         case TOKEN_KIND_LESS_THAN_EQUAL:
-        case TOKEN_KIND_RIGHT_ARROW:
         case TOKEN_KIND_RIGHT_SHIFT:
         case TOKEN_KIND_LEFT_SHIFT: {
             eat_token(tok_stream, tok.kind);  // consume the operator
@@ -527,15 +523,15 @@ ast_node *parse_infix_and_postfix(ast *ast, token_stream *tok_stream, i32 prec, 
             break;
         }
         case '[': {
-            eat_token(tok_stream, '['); // [
+            eat_token(tok_stream, '[');
             ast_node *index = parse_expression(ast, tok_stream, -9999);
-            eat_token(tok_stream, ']'); // ]
+            eat_token(tok_stream, ']');
             return binop_node(ast, BINOP_ARRAY_SUBSCRIPT, left, index);
             break;
         }
         case '.': {
             eat_token(tok_stream, '.');
-            ast_node *right = parse_prefix(ast, tok_stream); // field name, not a full expr
+            ast_node *right = parse_prefix(ast, tok_stream);
             return binop_node(ast, BINOP_MEMBER_ACCESS, left, right);
             break;
         }

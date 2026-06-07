@@ -146,6 +146,12 @@ token_stream tokenize(tokenizer *tokenizer) {
         eat_all_whitespaces(tokenizer);
         switch(peek_char(tokenizer, 0)) {
             case 0:
+                // if we need to peek ahead more than one token in
+                // the future, then we can put in a second end of
+                // stream token so that peak_next_next token is
+                // guarunteed to return the sentinel instead of going
+                // past the end since peek_token() and friends do no bounds
+                // checking for performance reasons.
                 make_token(tokenizer, TOKEN_KIND_END_OF_STREAM, 0);
                 break;
             case '(':
