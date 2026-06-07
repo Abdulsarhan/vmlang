@@ -1,6 +1,6 @@
 #include "pretty_printing.h"
 
-static const char *binop_kind_to_string(binop_kind kind) {
+internal const char *binop_kind_to_string(binop_kind kind) {
     switch(kind) {
         case BINOP_ADD:               return "+";
         case BINOP_SUB:               return "-";
@@ -41,7 +41,7 @@ static const char *binop_kind_to_string(binop_kind kind) {
     }
 }
 
-static const char *unary_kind_to_string(unary_kind kind) {
+internal const char *unary_kind_to_string(unary_kind kind) {
     switch(kind) {
         case UNARY_PLUS:          return "+";
         case UNARY_MINUS:         return "-";
@@ -57,13 +57,13 @@ static const char *unary_kind_to_string(unary_kind kind) {
     }
 }
 
-void print_indent(int depth) {
+internal void print_indent(int depth) {
     for(int i = 0; i < depth; i++) {
         printf("|  ");
     }
 }
 
-void print_ast(ast_node *root, int depth) {
+internal void print_ast(ast_node *root, int depth) {
     if(!root) {
         return;
     }

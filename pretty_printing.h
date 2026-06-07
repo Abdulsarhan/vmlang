@@ -3,6 +3,6 @@
 
 #include "parser.h"
 
-void print_ast(ast_node *root, int depth);
+internal void print_ast(ast_node *root, int depth);
 
 #endif /* PRETTY_PRINTING_H */
