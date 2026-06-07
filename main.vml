@@ -14,7 +14,7 @@ main :: () -> i32 {
     }
     a := 5;
     b := 5;
-    character := '\0';
+    character := '\n';
     some_string := "this is a string";
     print_something();
     return a * b / 2 + 3;

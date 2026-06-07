@@ -190,28 +190,26 @@ token_stream tokenize(tokenizer *tokenizer) {
             case '\'': {
                 u8 literal_length = 0;
                 u8 *char_start = tokenizer->at;
-                if(match(tokenizer, '\\')) { // if we get a backslash
-                    eat_char(tokenizer);
-                    if(match(tokenizer, '\'')) {
-                        literal_length = 2;
-                    } else if(is_printable(peek_char(tokenizer))) {
-                        fatal_error("Error: character literal contains multiple characters!");
-                    } else {
-                        fatal_error("Error: missing closing quote to terminate char literal");
-                    }
-                } else if (match(tokenizer, '\'')) { // this is meant to handle empty char literals.
-                    literal_length = 0;
-                } else {
+                if(match(tokenizer, '\\')) {
                     if(is_printable(peek_char(tokenizer))) {
                         eat_char(tokenizer);
                         if(match(tokenizer, '\'')) {
-                            literal_length = 1;
+                            literal_length = 2;
                         } else {
                             fatal_error("Error: missing closing quote to terminate char literal");
                         }
-                    } else if(is_printable(ch)) {
-                        fatal_error("Error: character literal contains multiple characters!");
                     }
+                } else if(is_printable(peek_char(tokenizer)) && peek_char(tokenizer) != '\'') {
+                    eat_char(tokenizer);
+                    if(match(tokenizer, '\'')) {
+                        literal_length = 1;
+                    } else {
+                        fatal_error("Error: missing closing quote to terminate char literal");
+                    }
+                } else if(match(tokenizer, '\'')) {
+                    literal_length = 0;
+                } else {
+                    fatal_error("Error: missing closing quote to terminate char literal");
                 }
                 make_char_token(tokenizer, char_start, literal_length);
                 break;
