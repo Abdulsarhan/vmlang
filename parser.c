@@ -6,9 +6,25 @@ typedef enum operator_pos {
     POSTFIX,
 }operator_pos;
 
-token peek_token(token_stream *stream, size_t lookahead) {
-    if(stream->at + lookahead != stream->end) {
-        return *(stream->at + lookahead);
+token peek_token(token_stream *stream) {
+    if(stream->at != stream->end) {
+        return *(stream->at);
+    }
+    printf("Error: %s(): Tried to peek past end of token stream\n Returning current token.", __func__);
+    return *stream->at;
+}
+
+token peek_next_token(token_stream *stream) {
+    if(stream->at + 1 != stream->end) {
+        return *(stream->at + 1);
+    }
+    printf("Error: %s(): Tried to peek past end of token stream\n Returning current token.", __func__);
+    return *stream->at;
+}
+
+token peek_next_next_token(token_stream *stream) {
+    if(stream->at + 2 != stream->end) {
+        return *(stream->at + 2);
     }
     printf("Error: %s(): Tried to peek past end of token stream\n Returning current token.", __func__);
     return *stream->at;
@@ -275,7 +291,7 @@ unary_kind unary_from_token(token tok, operator_pos pos) {
 }
 
 ast_node *parse_prefix(ast *ast, token_stream *tok_stream) {
-    token tok = peek_token(tok_stream, 0);
+    token tok = peek_token(tok_stream);
     switch(tok.kind) {
         case TOKEN_KIND_FLOAT_LITERAL:
             return parse_float_lit(ast, tok_stream);
@@ -360,7 +376,7 @@ Becomes:
 ast_node *parse_expression(ast *ast, token_stream *tok_stream, int min_prec) {
     ast_node *left = parse_prefix(ast, tok_stream);
     while (1) {
-        token next_token = peek_token(tok_stream, 0);
+        token next_token = peek_token(tok_stream);
         i32 prec = get_operator_precedence(next_token);
         // prec == 0 means that the token is not an operator or we hit end of stream.
         if (prec == 0 || prec < min_prec) {
@@ -376,7 +392,7 @@ ast_node **parse_function_parameters(ast *ast, token_stream *tok_stream) {
     eat_token(tok_stream, 1);
     ast_node **params = NULL;
     while(1) {
-        token tok = peek_token(tok_stream, 0);
+        token tok = peek_token(tok_stream);
         if(tok.kind == ')') {
             break;
         }
@@ -491,7 +507,7 @@ binop_kind binop_from_token(token tok) {
 }
 
 ast_node *parse_infix_and_postfix(ast *ast, token_stream *tok_stream, i32 prec, ast_node *left) {
-    token tok = peek_token(tok_stream, 0);
+    token tok = peek_token(tok_stream);
     switch(tok.kind) {
         case '+':
         case '-':
@@ -561,7 +577,6 @@ ast_node *parse_infix_and_postfix(ast *ast, token_stream *tok_stream, i32 prec, 
         }
         case '(':
             ast_node **params = parse_function_parameters(ast, tok_stream);
-            eat_token(tok_stream , 1); // eat the semicolon after the function call.
             return function_call_node(ast, left, params);
             break;
     }
@@ -573,12 +588,8 @@ ast_node *parse_block(ast *ast, token_stream *tok_stream) {
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_BLOCK;
     node->block.statements = NULL;
-    while (peek_token(tok_stream, 0).kind != '}') {
+    while (peek_token(tok_stream).kind != '}') {
         ast_node *stmt = parse_statement(ast, tok_stream);
-        token tok = peek_token(tok_stream, 0);
-        if(tok.kind == ';') {
-            eat_token(tok_stream, 1);
-        }
         da_push(node->block.statements, stmt);
     }
     eat_token(tok_stream, 1); // }
@@ -594,11 +605,11 @@ ast_node *parse_if(ast *ast, token_stream *tok_stream) {
 }
 
 ast_node *parse_else_or_else_if(ast *ast, token_stream *tok_stream) {
-    token tok = peek_token(tok_stream, 1);
+    token tok = peek_token(tok_stream);
     ast_node *node = NULL;
     if(tok.kind == TOKEN_KIND_ELSE) {
         eat_token(tok_stream, 1); // else
-        tok = peek_token(tok_stream, 0);
+        tok = peek_token(tok_stream);
         if(tok.kind == TOKEN_KIND_IF) {
             eat_token(tok_stream, 1); // if
             node = parse_if(ast, tok_stream);
@@ -614,10 +625,10 @@ ast_node *parse_else_or_else_if(ast *ast, token_stream *tok_stream) {
 }
 
 ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
-    token tok = peek_token(tok_stream, 0);
+    token tok = peek_token(tok_stream);
     switch(tok.kind) {
         case TOKEN_KIND_IF: {
-            tok = peek_token(tok_stream, 1);
+            tok = peek_next_token(tok_stream);
             if(tok.kind == TOKEN_KIND_IDENTIFIER || tok.kind == TOKEN_KIND_INT_LITERAL) {
                 return parse_if(ast, tok_stream);
             } else {
@@ -641,17 +652,29 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
         }
         case TOKEN_KIND_CONTINUE: {
             eat_token(tok_stream, 1); // continue
+            tok = eat_token(tok_stream, 1);
+            if(tok.kind != ';') {
+                fatal_error("Error: Expected semicolon after continue statement.");
+            }
             return continue_node(ast);
             break;
         }
         case TOKEN_KIND_BREAK: {
             eat_token(tok_stream, 1); // break
+            tok = eat_token(tok_stream, 1);
+            if(tok.kind != ';') {
+                fatal_error("Error: Expected semicolon after break statement.");
+            }
             return break_node(ast);
             break;
         }
         case TOKEN_KIND_RETURN: {
             eat_token(tok_stream, 1); // return
             ast_node *expression = parse_expression(ast, tok_stream, -9999);
+            tok = eat_token(tok_stream, 1);
+            if(tok.kind != ';') {
+                fatal_error("Error: Expected semicolon after return statement.");
+            }
             return return_node(ast, expression);
             break;
         }
@@ -660,7 +683,12 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
             break;
         }
         case TOKEN_KIND_IDENTIFIER:
-            return parse_expression(ast, tok_stream, -9999);
+            ast_node *expr = parse_expression(ast, tok_stream, -9999);
+            tok = eat_token(tok_stream, 1);
+            if (tok.kind != ';') {
+                fatal_error("Error: Expected semicolon after expression statement.");
+            }
+            return expr;
             break;
         case TOKEN_KIND_INT_LITERAL:
         case TOKEN_KIND_FLOAT_LITERAL:
@@ -679,10 +707,10 @@ ast_node *parse_function_declaration(ast *ast, token_stream *tok_stream) {
     eat_token(tok_stream, 1); // ::
     ast_node **params = parse_function_parameters(ast, tok_stream);
     ast_node *return_type = NULL;
-    token tok = peek_token(tok_stream, 0);
+    token tok = peek_token(tok_stream);
     if(tok.kind == TOKEN_KIND_RIGHT_ARROW) {
         eat_token(tok_stream, 1);
-        if(peek_token(tok_stream , 0).kind == TOKEN_KIND_IDENTIFIER) {
+        if(peek_token(tok_stream).kind == TOKEN_KIND_IDENTIFIER) {
             return_type = ident_node(ast, tok_stream);
         }
     }
@@ -712,11 +740,11 @@ ast_node *parse_declaration_of_struct_or_union_or_enum(ast *ast, token_stream *t
 }
 
 ast_node *parse_declaration(ast *ast, token_stream *tok_stream) {
-    token tok = peek_token(tok_stream, 0);
+    token tok = peek_token(tok_stream);
     if(tok.kind == TOKEN_KIND_IDENTIFIER) {
-        tok = peek_token(tok_stream, 1);
+        tok = peek_next_token(tok_stream);
         if(tok.kind == TOKEN_KIND_COLON_COLON) {
-            tok = peek_token(tok_stream, 2);
+            tok = peek_next_next_token(tok_stream);
             if(tok.kind == '(') {
                 return parse_function_declaration(ast, tok_stream);
             } else if(tok.kind == TOKEN_KIND_STRUCT || tok.kind == TOKEN_KIND_UNION || tok.kind == TOKEN_KIND_ENUM) {
@@ -737,7 +765,7 @@ ast_node *parse_declaration(ast *ast, token_stream *tok_stream) {
 ast_node *parse_file(ast *ast, token_stream *tok_stream) {
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_FILE;
-    while(peek_token(tok_stream, 0).kind != TOKEN_KIND_END_OF_STREAM) {
+    while(peek_token(tok_stream).kind != TOKEN_KIND_END_OF_STREAM) {
         ast_node *declaration = parse_declaration(ast, tok_stream);
         da_push(node->file.declarations, declaration);
     }
