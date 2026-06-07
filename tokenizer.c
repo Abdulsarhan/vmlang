@@ -39,18 +39,8 @@ void eat_all_whitespaces(tokenizer *tokenizer) {
     }
 }
 
-unsigned char eat_chars(tokenizer *tokenizer, size_t num_chars_to_eat) {
-    unsigned char current_char = *tokenizer->at;
-    if(tokenizer->at + num_chars_to_eat <= tokenizer->end) {
-        tokenizer->at += num_chars_to_eat;
-        return current_char;
-    }
-    printf("Error: %s(): Tried to eat past end of file. Returning 0.\n", __func__);
-    return 0;
-}
-
-unsigned char eat_char(tokenizer *tokenizer) {
-    unsigned char current_char = *tokenizer->at;
+u8 eat_char(tokenizer *tokenizer) {
+    u8 current_char = *tokenizer->at;
     if(tokenizer->at + 1 <= tokenizer->end) {
         tokenizer->at += 1;
         return current_char;
@@ -59,15 +49,7 @@ unsigned char eat_char(tokenizer *tokenizer) {
     return 0;
 }
 
-unsigned char peek_chars(const tokenizer *tokenizer, size_t lookahead) {
-    if(tokenizer->at + lookahead != tokenizer->end) {
-        return *(tokenizer->at + lookahead);
-    }
-    printf("Error: %s(): Tried to peek past end of file. Returning 0.\n", __func__);
-    return 0;
-}
-
-unsigned char peek_char(const tokenizer *tokenizer) {
+u8 peek_char(const tokenizer *tokenizer) {
     if(tokenizer->at != tokenizer->end) {
         return *(tokenizer->at);
     }
@@ -75,7 +57,15 @@ unsigned char peek_char(const tokenizer *tokenizer) {
     return 0;
 }
 
-unsigned char peek_next_char(const tokenizer *tokenizer) {
+b32 match(tokenizer *tokenizer, u8 expected) {
+    if(peek_char(tokenizer) == expected) {
+        eat_char(tokenizer);
+        return true;
+    }
+    return false;
+}
+
+u8 peek_next_char(const tokenizer *tokenizer) {
     if(tokenizer->at + 1 != tokenizer->end) {
         return *(tokenizer->at + 1);
     }
@@ -83,18 +73,9 @@ unsigned char peek_next_char(const tokenizer *tokenizer) {
     return 0;
 }
 
-unsigned char peek_next_next_char(const tokenizer *tokenizer) {
-    if(tokenizer->at + 1 != tokenizer->end) {
-        return *(tokenizer->at + 1);
-    }
-    printf("Error: %s(): Tried to peek past end of file. Returning 0.\n", __func__);
-    return 0;
-}
-
-void make_token(tokenizer *tokenizer, token_kind kind, u64 token_len) {
+void make_token(tokenizer *tokenizer, token_kind kind) {
     token *tok = &tokenizer->tokens[tokenizer->token_count++];
     tok->kind = kind;
-    eat_chars(tokenizer, token_len);
 }
 
 void make_char_token(tokenizer *tokenizer, u8 *char_start, u64 token_len) {
@@ -135,17 +116,13 @@ void make_char_token(tokenizer *tokenizer, u8 *char_start, u64 token_len) {
                 break;
         }
     }
-    for(u64 i = 0; i < token_len; i++) {
-        eat_char(tokenizer);
-    }
 }
 
-void make_ident(tokenizer *tokenizer, u64 token_len) {
+void make_ident(tokenizer *tokenizer, u8 *ident_start, u64 token_len) {
     token *tok = &tokenizer->tokens[tokenizer->token_count++];
     tok->kind = TOKEN_KIND_IDENTIFIER;
-    tok->ident_string.data = tokenizer->at;
+    tok->ident_string.data = ident_start;
     tok->ident_string.length = token_len;
-    eat_chars(tokenizer, token_len);
 }
 
 void make_string_token(tokenizer *tokenizer, u8 *string_start, u64 token_len) {
@@ -153,38 +130,34 @@ void make_string_token(tokenizer *tokenizer, u8 *string_start, u64 token_len) {
     tok->kind = TOKEN_KIND_STRING_LITERAL;
     tok->string_value.data = string_start;
     tok->string_value.length = token_len;
-    eat_chars(tokenizer, token_len);
 }
 
-void make_int_token(tokenizer *tokenizer, u64 token_len) {
+void make_int_token(tokenizer *tokenizer, u8 *int_start, u64 token_len) {
     token *tok = &tokenizer->tokens[tokenizer->token_count++];
     tok->kind = TOKEN_KIND_INT_LITERAL;
-    string8 str = {.data = tokenizer->at, .length = token_len};
+    string8 str = {.data = int_start, .length = token_len};
     tok->integer_value = str_to_i64(str);
-    eat_chars(tokenizer, token_len);
 }
 
-void make_float_token(tokenizer *tokenizer, u64 token_len) {
+void make_float_token(tokenizer *tokenizer, u8 *float_start, u64 token_len) {
     token *tok = &tokenizer->tokens[tokenizer->token_count++];
     tok->kind = TOKEN_KIND_FLOAT_LITERAL;
-    string8 str = {.data = tokenizer->at, .length = token_len};
+    string8 str = {.data = float_start, .length = token_len};
     tok->float_value = str_to_f64(str);
-    eat_chars(tokenizer, token_len);
 }
 
-void make_bool_token(tokenizer *tokenizer, u64 token_len, b32 true_or_false) {
+void make_bool_token(tokenizer *tokenizer, b32 true_or_false) {
     token *tok = &tokenizer->tokens[tokenizer->token_count++];
     tok->kind = TOKEN_KIND_BOOL_LITERAL;
     tok->bool_value = true_or_false;
-    eat_chars(tokenizer, token_len);
 }
 
 token_stream tokenize(tokenizer *tokenizer) {
-    unsigned char ch = 0;
+    u8 ch = 0;
 
     while(tokenizer->at < tokenizer->end) {
         eat_all_whitespaces(tokenizer);
-        switch(peek_char(tokenizer)) {
+        switch(eat_char(tokenizer)) {
             case 0:
                 // if we need to peek ahead more than one token in
                 // the future, then we can put in a second end of
@@ -192,7 +165,7 @@ token_stream tokenize(tokenizer *tokenizer) {
                 // guarunteed to return the sentinel instead of going
                 // past the end since peek_token() and friends do no bounds
                 // checking for performance reasons.
-                make_token(tokenizer, TOKEN_KIND_END_OF_STREAM, 0);
+                make_token(tokenizer, TOKEN_KIND_END_OF_STREAM);
                 break;
             case '(':
             case ')':
@@ -203,15 +176,14 @@ token_stream tokenize(tokenizer *tokenizer) {
             case '#':
             case '~':
             case ';':
-                make_token(tokenizer, *tokenizer->at, 1);
+                make_token(tokenizer, *(tokenizer->at - 1));
                 break;
             case '\'': {
                 u8 literal_length = 0;
-                eat_chars(tokenizer, 1);
                 u8 *char_start = tokenizer->at;
                 ch = peek_char(tokenizer);
                 if(ch == '\\') { // if we get a backslash
-                    eat_chars(tokenizer, 1);
+                    eat_char(tokenizer);
                     ch = peek_next_char(tokenizer);
                     if(ch == '\'') { // if we get a quote
                         literal_length = 2;
@@ -231,25 +203,24 @@ token_stream tokenize(tokenizer *tokenizer) {
                         fatal_error("Error: missing closing quote to terminate char literal");
                     }
                 }
+                eat_char(tokenizer);
                 make_char_token(tokenizer, char_start, literal_length);
-                eat_chars(tokenizer, 1);
                 break;
             }
             case '"': /* TODO: Handle escaping inside of string literals */
-                eat_char(tokenizer);
                 u8 *string_start = tokenizer->at;
                 i32 string_len = 0;
-                while(tokenizer->at < tokenizer->end && peek_char(tokenizer) != '"') {
+
+                while(tokenizer->at < tokenizer->end && *tokenizer->at != '"') {
                     string_len++;
-                    tokenizer->at++;
+                    eat_char(tokenizer);
                 }
                 if(tokenizer->at >= tokenizer->end) {
                     fatal_error("Error: unterminated string literal");
                 }
 
-                tokenizer->at = string_start;
-                make_string_token(tokenizer, string_start, string_len);
                 eat_char(tokenizer);
+                make_string_token(tokenizer, string_start, string_len);
                 break;
             case '0':
             case '1':
@@ -261,186 +232,171 @@ token_stream tokenize(tokenizer *tokenizer) {
             case '7':
             case '8':
             case '9': {
-                i32 num_len = 0;
+                u8 *start = tokenizer->at - 1;  // the digit already eaten by the switch
                 b32 found_decimal = false;
                 b32 is_float = false;
-                while(is_number(peek_chars(tokenizer, num_len)) || peek_chars(tokenizer, num_len) == '.') {
-                    ch = peek_chars(tokenizer, num_len);
-                    if(ch == '.' && found_decimal) {
-                        num_len--;
-                        is_float = false;
-                        break;
-                    }
-                    if(ch == '.') {
+                while(tokenizer->at < tokenizer->end) {
+                    ch = peek_char(tokenizer);
+                    if(ch == '.' && !found_decimal) {
                         found_decimal = true;
                         is_float = true;
+                    } else if(ch == '.' && found_decimal) {
+                        break;
+                    } else if(!is_number(ch)) {
+                        break;
                     }
-                    num_len++;
+                    eat_char(tokenizer);
                 }
+                u64 num_len = tokenizer->at - start;
                 if(is_float) {
-                    make_float_token(tokenizer, num_len);
+                    make_float_token(tokenizer, start, num_len);
                 } else {
-                    make_int_token(tokenizer, num_len);
+                    make_int_token(tokenizer, start, num_len);
                 }
                 break;
             }
             case '>':
-                ch = peek_next_char(tokenizer);
-                if(ch == '=') {
-                    make_token(tokenizer, TOKEN_KIND_GREATER_THAN_EQUAL, 2);
-                } else if (ch == '>') {
-                    ch = peek_next_next_char(tokenizer);
-                    if(ch == '=') {
-                        make_token(tokenizer, TOKEN_KIND_RIGHT_SHIFT_EQUAL, 3);
+                if(match(tokenizer, '=')) {
+                    make_token(tokenizer, TOKEN_KIND_GREATER_THAN_EQUAL);
+                } else if (match(tokenizer, '>')) {
+                    if(match(tokenizer, '=')) {
+                        make_token(tokenizer, TOKEN_KIND_RIGHT_SHIFT_EQUAL);
                     } else {
-                        make_token(tokenizer, TOKEN_KIND_RIGHT_SHIFT, 2);
+                        make_token(tokenizer, TOKEN_KIND_RIGHT_SHIFT);
                     }
                 } else {
-                    make_token(tokenizer, *tokenizer->at, 1);
+                    make_token(tokenizer, '>');
                 }
                 break;
             case '<':
-                ch = peek_next_char(tokenizer);
-                if(ch == '=') {
-                    make_token(tokenizer, TOKEN_KIND_LESS_THAN_EQUAL, 2);
-                } else if (ch == '<') {
-                    ch = peek_next_next_char(tokenizer);
-                    if(ch == '=') {
-                        make_token(tokenizer, TOKEN_KIND_LEFT_SHIFT_EQUAL, 3);
+                if(match(tokenizer, '=')) {
+                    make_token(tokenizer, TOKEN_KIND_LESS_THAN_EQUAL);
+                } else if (match(tokenizer, '<')) {
+                    if(match(tokenizer, '=')) {
+                        make_token(tokenizer, TOKEN_KIND_LEFT_SHIFT_EQUAL);
                     } else {
-                        make_token(tokenizer, TOKEN_KIND_LEFT_SHIFT, 2);
+                        make_token(tokenizer, TOKEN_KIND_LEFT_SHIFT);
                     }
                 } else {
-                    make_token(tokenizer, *tokenizer->at, 1);
+                    make_token(tokenizer, '<');
                 }
                 break;
             case '!':
-                ch = peek_next_char(tokenizer);
-                if(ch == '=') {
-                    make_token(tokenizer, TOKEN_KIND_NOT_EQUAL, 2);
+                if(match(tokenizer, '=')) {
+                    make_token(tokenizer, TOKEN_KIND_NOT_EQUAL);
                 } else {
-                    make_token(tokenizer, *tokenizer->at, 1);
+                    make_token(tokenizer, '!');
                 }
                 break;
             case '=':
-                ch = peek_next_char(tokenizer);
-                if(ch == '=') {
-                    make_token(tokenizer, TOKEN_KIND_EQUAL_EQUAL, 2);
+                if(match(tokenizer, '=')) {
+                    make_token(tokenizer, TOKEN_KIND_EQUAL_EQUAL);
                 } else {
-                    make_token(tokenizer, *tokenizer->at, 1);
+                    make_token(tokenizer, '=');
                 }
                 break;
             case '|':
-                ch = peek_next_char(tokenizer);
-                if(ch == '=') {
-                    make_token(tokenizer, TOKEN_KIND_OR_EQUAL, 2);
-                } else if(ch == '|') {
-                    make_token(tokenizer, TOKEN_KIND_OR_OR, 2);
+                if(match(tokenizer, '=')) {
+                    make_token(tokenizer, TOKEN_KIND_OR_EQUAL);
+                } else if(match(tokenizer, '|')) {
+                    make_token(tokenizer, TOKEN_KIND_OR_OR);
                 } else {
-                    make_token(tokenizer, *tokenizer->at, 1);
+                    make_token(tokenizer, '|');
                 }
                 break;
             case '^':
-                ch = peek_next_char(tokenizer);
-                if(ch == '=') {
-                    make_token(tokenizer, TOKEN_KIND_OR_EQUAL, 2);
+                if(match(tokenizer, '=')) {
+                    make_token(tokenizer, TOKEN_KIND_XOR_EQUAL);
                 } else {
-                    make_token(tokenizer, *tokenizer->at, 1);
+                    make_token(tokenizer, '^');
                 }
                 break;
             case '&':
-                ch = peek_next_char(tokenizer);
-                if(ch == '=') {
-                    make_token(tokenizer, TOKEN_KIND_AND_EQUAL, 2);
-                } else if(ch == '&') {
-                    make_token(tokenizer, TOKEN_KIND_AND_AND, 2);
+                if(match(tokenizer, '=')) {
+                    make_token(tokenizer, TOKEN_KIND_AND_EQUAL);
+                } else if(match(tokenizer, '&')) {
+                    make_token(tokenizer, TOKEN_KIND_AND_AND);
                 } else {
-                    make_token(tokenizer, *tokenizer->at, 1);
+                    make_token(tokenizer, '&');
                 }
                 break;
             case '+':
-                ch = peek_next_char(tokenizer);
-                if(ch == '=') {
-                    make_token(tokenizer, TOKEN_KIND_PLUS_EQUAL, 2);
-                } else if(ch == '+') {
-                    make_token(tokenizer, TOKEN_KIND_PLUS_PLUS, 2);
+                if(match(tokenizer, '=')) {
+                    make_token(tokenizer, TOKEN_KIND_PLUS_EQUAL);
+                } else if(match(tokenizer, '+')) {
+                    make_token(tokenizer, TOKEN_KIND_PLUS_PLUS);
                 } else {
-                    make_token(tokenizer, *tokenizer->at, 1);
+                    make_token(tokenizer, '+');
                 }
                 break;
             case '-':
-                ch = peek_next_char(tokenizer);
-                if(ch == '=') {
-                    make_token(tokenizer, TOKEN_KIND_MINUS_EQUAL, 2);
-                } else if(ch == '>') {
-                    make_token(tokenizer, TOKEN_KIND_RIGHT_ARROW, 2);
-                } else if(ch == '-') {
-                    make_token(tokenizer, TOKEN_KIND_MINUS_MINUS, 2);
+                if(match(tokenizer, '=')) {
+                    make_token(tokenizer, TOKEN_KIND_MINUS_EQUAL);
+                } else if(match(tokenizer, '>')) {
+                    make_token(tokenizer, TOKEN_KIND_RIGHT_ARROW);
+                } else if(match(tokenizer, '-')) {
+                    make_token(tokenizer, TOKEN_KIND_MINUS_MINUS);
                 } else {
-                    make_token(tokenizer, *tokenizer->at, 1);
+                    make_token(tokenizer, '-');
                 }
                 break;
             case '/':
-                ch = peek_next_char(tokenizer);
-                if(ch == '=') {
-                    make_token(tokenizer, TOKEN_KIND_DIVIDE_EQUAL, 2);
-                } else if(ch == '/') {
+                if(match(tokenizer, '=')) {
+                    make_token(tokenizer, TOKEN_KIND_DIVIDE_EQUAL);
+                } else if(match(tokenizer, '/')) {
                     while(1) {
-                        ch = eat_chars(tokenizer, 1);
+                        ch = eat_char(tokenizer);
                         if(ch == '\n' || ch == 0) {
                             break;
                         }
                     }
                 } else {
-                    make_token(tokenizer, *tokenizer->at, 1);
+                    make_token(tokenizer, '/');
                 }
                 break;
             case '%':
-                ch = peek_next_char(tokenizer);
-                if(ch == '=') {
-                    make_token(tokenizer, TOKEN_KIND_MOD_EQUAL, 2);
+                if(match(tokenizer, '=')) {
+                    make_token(tokenizer, TOKEN_KIND_MOD_EQUAL);
                 } else {
-                    make_token(tokenizer, *tokenizer->at, 1);
+                    make_token(tokenizer, '%');
                 }
                 break;
             case '*':
-                ch = peek_next_char(tokenizer);
-                if(ch == '=') {
-                    make_token(tokenizer, TOKEN_KIND_MULTIPLY_EQUAL, 2);
+                if(match(tokenizer, '=')) {
+                    make_token(tokenizer, TOKEN_KIND_MULTIPLY_EQUAL);
                 } else {
-                    make_token(tokenizer, *tokenizer->at, 1);
+                    make_token(tokenizer, '*');
                 }
                 break;
             case ':':
-                ch = peek_next_char(tokenizer);
-                if(ch == ':') {
-                    make_token(tokenizer, TOKEN_KIND_COLON_COLON, 2);
-                } else if(ch == '=') {
-                    make_token(tokenizer, TOKEN_KIND_COLON_EQUAL, 2);
+                if(match(tokenizer, ':')) {
+                    make_token(tokenizer, TOKEN_KIND_COLON_COLON);
+                } else if(match(tokenizer, '=')) {
+                    make_token(tokenizer, TOKEN_KIND_COLON_EQUAL);
                 } else {
-                    make_token(tokenizer, *tokenizer->at, 1);
+                    make_token(tokenizer, ':');
                 }
                 break;
             case '.':
-                ch = peek_next_char(tokenizer);
-                if(ch == '.') {
-                    make_token(tokenizer, TOKEN_KIND_DOT_DOT, 1);
+                if(match(tokenizer, '.')) {
+                    make_token(tokenizer, TOKEN_KIND_DOT_DOT);
                 } else {
-                    make_token(tokenizer, *tokenizer->at, 1);
+                    make_token(tokenizer, '.');
                 }
                 break;
             default: {
-                if(is_alpha(peek_char(tokenizer))) { /* we found a potential ident */
-                    i32 ident_len = 0;
-                    ch = peek_chars(tokenizer, ident_len);
-                    while(!is_whitespace(ch)) {
-                        ident_len++;
-                        ch = peek_chars(tokenizer, ident_len);
+                u8 *ident_start = tokenizer->at - 1;
+                if(is_alpha(*ident_start)) { /* we found a potential ident */
+                    i32 ident_len = 1;
+                    while(tokenizer->at < tokenizer->end) {
+                        ch = peek_char(tokenizer);
                         if(!(is_alphanumeric(ch) || ch == '_')) {
                             break;
                         }
+                        ident_len++;
+                        eat_char(tokenizer);
                     }
-                    string8 tok = {.data = tokenizer->at, .length = ident_len};
+                    string8 tok = {.data = ident_start, .length = ident_len};
                     token_kind kind = TOKEN_KIND_IDENTIFIER;
                     switch(ident_len) {
                         case 2:
@@ -487,9 +443,9 @@ token_stream tokenize(tokenizer *tokenizer) {
                             break;
                     }
                     if(kind != TOKEN_KIND_IDENTIFIER) {
-                        make_token(tokenizer, kind, ident_len);
+                        make_token(tokenizer, kind);
                     } else {
-                        make_ident(tokenizer, ident_len);
+                        make_ident(tokenizer, ident_start, ident_len);
                     }
                 } else {
                     printf("Error: Unexpected character:");
