@@ -631,9 +631,9 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
         }
         case TOKEN_KIND_FOR: {
             eat_token(tok_stream, TOKEN_KIND_FOR);
-            ast_node *range = parse_expression(ast, tok_stream, -9999);
+            ast_node *range_or_count = parse_expression(ast, tok_stream, -9999);
             ast_node *block = parse_block(ast, tok_stream);
-            return for_node(ast, range, block);
+            return for_node(ast, range_or_count, block);
             break;
         }
         case TOKEN_KIND_CONTINUE: {
