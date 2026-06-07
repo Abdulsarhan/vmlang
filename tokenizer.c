@@ -86,6 +86,9 @@ void make_char_token(tokenizer *tokenizer, u8 *char_start, u64 token_len) {
     } else if(token_len == 1) {
         tok->char_value = char_start[0];
     } else if(token_len == 2) {
+        if(char_start[0] != '\\') {
+            fatal_error("Error: Expected backslash in multi-character char literal");
+        }
         switch(char_start[1]) {
             case 'a':
                 tok->char_value = '\a';
@@ -164,7 +167,7 @@ token_stream tokenize(tokenizer *tokenizer) {
     while(tokenizer->at < tokenizer->end) {
         eat_all_whitespaces(tokenizer);
         switch(eat_char(tokenizer)) {
-            case 0:
+            case '\0':
                 // if we need to peek ahead more than one token in
                 // the future, then we can put in a second end of
                 // stream token so that peak_next_next token is
@@ -187,29 +190,29 @@ token_stream tokenize(tokenizer *tokenizer) {
             case '\'': {
                 u8 literal_length = 0;
                 u8 *char_start = tokenizer->at;
-                ch = peek_char(tokenizer);
-                if(ch == '\\') { // if we get a backslash
+                if(match(tokenizer, '\\')) { // if we get a backslash
                     eat_char(tokenizer);
-                    ch = peek_next_char(tokenizer);
-                    if(ch == '\'') { // if we get a quote
+                    if(match(tokenizer, '\'')) {
                         literal_length = 2;
-                    } else if(is_printable(ch)) {
+                    } else if(is_printable(peek_char(tokenizer))) {
                         fatal_error("Error: character literal contains multiple characters!");
                     } else {
                         fatal_error("Error: missing closing quote to terminate char literal");
                     }
-                } else if (ch == '\'') { // this is meant to handle empty char literals.
+                } else if (match(tokenizer, '\'')) { // this is meant to handle empty char literals.
                     literal_length = 0;
                 } else {
-                    if(peek_next_char(tokenizer) == '\'') {
-                        literal_length = 1;
+                    if(is_printable(peek_char(tokenizer))) {
+                        eat_char(tokenizer);
+                        if(match(tokenizer, '\'')) {
+                            literal_length = 1;
+                        } else {
+                            fatal_error("Error: missing closing quote to terminate char literal");
+                        }
                     } else if(is_printable(ch)) {
                         fatal_error("Error: character literal contains multiple characters!");
-                    } else {
-                        fatal_error("Error: missing closing quote to terminate char literal");
                     }
                 }
-                eat_char(tokenizer);
                 make_char_token(tokenizer, char_start, literal_length);
                 break;
             }
