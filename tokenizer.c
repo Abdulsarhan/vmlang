@@ -111,6 +111,12 @@ void make_char_token(tokenizer *tokenizer, u8 *char_start, u64 token_len) {
             case '\'':
                 tok->char_value = '\'';
                 break;
+            case '\\':
+                tok->char_value = '\\';
+                break;
+            case '0':
+                tok->char_value = '\0';
+                break;
             default:
                 fatal_error("Error: unsupported escape character in char literal");
                 break;
