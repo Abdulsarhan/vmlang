@@ -7,34 +7,24 @@ typedef enum operator_pos {
 }operator_pos;
 
 token peek_token(token_stream *stream) {
-    if(stream->at != stream->end) {
-        return *(stream->at);
-    }
-    printf("Error: %s(): Tried to peek past end of token stream\n Returning current token.", __func__);
     return *stream->at;
 }
 
 token peek_next_token(token_stream *stream) {
-    if(stream->at + 1 != stream->end) {
-        return *(stream->at + 1);
-    }
-    printf("Error: %s(): Tried to peek past end of token stream\n Returning current token.", __func__);
-    return *stream->at;
+    return *(stream->at + 1);
 }
 
-token peek_next_next_token(token_stream *stream) {
-    if(stream->at + 2 != stream->end) {
-        return *(stream->at + 2);
-    }
-    printf("Error: %s(): Tried to peek past end of token stream\n Returning current token.", __func__);
-    return *stream->at;
-}
-
-token eat_token(token_stream *stream, size_t num_tokens_to_eat) {
+token eat_token(token_stream *stream, token_kind kind) {
     token current_tok = *stream->at;
-    if(stream->at + num_tokens_to_eat <= stream->end) {
-        stream->at += num_tokens_to_eat;
-        return current_tok;
+    if(stream->at + 1 < stream->end) {
+        if(current_tok.kind == kind) {
+            stream->at += 1;
+            return current_tok;
+        } else {
+            // NOTE: This is trash, do something better.
+            // print the actual kind as text.
+            fatal_error("Error: expected %d token", kind);
+        }
     }
     printf("Error: %s(): Tried to eat past end of file\n", __func__);
     return current_tok;
@@ -112,7 +102,7 @@ ast_node *function_call_node(ast *ast, ast_node *function_name, ast_node **param
 ast_node *ident_node(ast *ast, token_stream *tok_stream) {
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_IDENT;
-    node->ident.name = eat_token(tok_stream, 1).string_value;
+    node->ident.name = eat_token(tok_stream, TOKEN_KIND_IDENTIFIER).string_value;
     return node;
 }
 
@@ -213,7 +203,7 @@ i32 get_operator_precedence(token tok) {
 }
 
 ast_node *parse_int_lit(ast *ast, token_stream *tok_stream) {
-    token tok = eat_token(tok_stream, 1);
+    token tok = eat_token(tok_stream, TOKEN_KIND_INT_LITERAL);
 
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_INT_LIT;
@@ -222,7 +212,7 @@ ast_node *parse_int_lit(ast *ast, token_stream *tok_stream) {
 }
 
 ast_node *parse_float_lit(ast *ast, token_stream *tok_stream) {
-    token tok = eat_token(tok_stream, 1);
+    token tok = eat_token(tok_stream, TOKEN_KIND_FLOAT_LITERAL);
 
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_FLOAT_LIT;
@@ -231,7 +221,7 @@ ast_node *parse_float_lit(ast *ast, token_stream *tok_stream) {
 }
 
 ast_node *parse_char_lit(ast *ast, token_stream *tok_stream) {
-    token tok = eat_token(tok_stream, 1);
+    token tok = eat_token(tok_stream, TOKEN_KIND_CHAR_LITERAL);
 
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_CHAR_LIT;
@@ -240,7 +230,7 @@ ast_node *parse_char_lit(ast *ast, token_stream *tok_stream) {
 }
 
 ast_node *parse_string_lit(ast *ast, token_stream *tok_stream) {
-    token tok = eat_token(tok_stream, 1);
+    token tok = eat_token(tok_stream, TOKEN_KIND_STRING_LITERAL);
 
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_STRING_LIT;
@@ -249,7 +239,7 @@ ast_node *parse_string_lit(ast *ast, token_stream *tok_stream) {
 }
 
 ast_node *parse_bool_lit(ast *ast, token_stream *tok_stream) {
-    token tok = eat_token(tok_stream, 1);
+    token tok = eat_token(tok_stream, TOKEN_KIND_BOOL_LITERAL);
 
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_BOOL_LIT;
@@ -309,9 +299,9 @@ ast_node *parse_prefix(ast *ast, token_stream *tok_stream) {
             return parse_int_lit(ast, tok_stream);
             break;
         case '(': // for parenthesized expressions.
-            eat_token(tok_stream, 1);
+            eat_token(tok_stream, '(');
             ast_node *expr = parse_expression(ast, tok_stream, -9999);
-            token eaten = eat_token(tok_stream, 1);
+            token eaten = eat_token(tok_stream, ')');
             if(eaten.kind != ')') {
                 fatal_error("Error: Expected closing parenthesis to terminate parenthesized expression.");
             }
@@ -323,7 +313,7 @@ ast_node *parse_prefix(ast *ast, token_stream *tok_stream) {
         case '!':
         case TOKEN_KIND_MINUS_MINUS:
         case TOKEN_KIND_PLUS_PLUS:
-            eat_token(tok_stream, 1);
+            eat_token(tok_stream, TOKEN_KIND_PLUS_PLUS);
             ast_node *operand = parse_prefix(ast, tok_stream);
             unary_kind kind = unary_from_token(tok, PREFIX);
             return unary_node(ast, kind, operand);
@@ -389,7 +379,7 @@ ast_node *parse_expression(ast *ast, token_stream *tok_stream, int min_prec) {
 }
 
 ast_node **parse_function_parameters(ast *ast, token_stream *tok_stream) {
-    eat_token(tok_stream, 1);
+    eat_token(tok_stream, '(');
     ast_node **params = NULL;
     while(1) {
         token tok = peek_token(tok_stream);
@@ -398,7 +388,7 @@ ast_node **parse_function_parameters(ast *ast, token_stream *tok_stream) {
         }
         switch(tok.kind) {
             case ',':
-                eat_token(tok_stream, 1);
+                eat_token(tok_stream, ',');
                 break;
             default:
                 ast_node *param = parse_expression(ast, tok_stream, -9999);
@@ -406,7 +396,7 @@ ast_node **parse_function_parameters(ast *ast, token_stream *tok_stream) {
                 break;
         }
     }
-    eat_token(tok_stream, 1);
+    eat_token(tok_stream, ')');
     return params;
 }
 
@@ -530,28 +520,28 @@ ast_node *parse_infix_and_postfix(ast *ast, token_stream *tok_stream, i32 prec, 
         case TOKEN_KIND_RIGHT_ARROW:
         case TOKEN_KIND_RIGHT_SHIFT:
         case TOKEN_KIND_LEFT_SHIFT: {
-            eat_token(tok_stream, 1);  // consume the operator
+            eat_token(tok_stream, tok.kind);  // consume the operator
             ast_node *right = parse_expression(ast, tok_stream, prec + 1); // +1 for left-assoc
             binop_kind kind = binop_from_token(tok);
             return binop_node(ast, kind, left, right);
             break;
         }
         case '[': {
-            eat_token(tok_stream, 1); // [
+            eat_token(tok_stream, '['); // [
             ast_node *index = parse_expression(ast, tok_stream, -9999);
-            eat_token(tok_stream, 1); // ]
+            eat_token(tok_stream, ']'); // ]
             return binop_node(ast, BINOP_ARRAY_SUBSCRIPT, left, index);
             break;
         }
         case '.': {
-            eat_token(tok_stream, 1);
+            eat_token(tok_stream, '.');
             ast_node *right = parse_prefix(ast, tok_stream); // field name, not a full expr
             return binop_node(ast, BINOP_MEMBER_ACCESS, left, right);
             break;
         }
         case TOKEN_KIND_DOT_DOT: {
             ast_node *left = parse_expression(ast, tok_stream, -9999);
-            eat_token(tok_stream, 1);
+            eat_token(tok_stream, TOKEN_KIND_DOT_DOT);
             ast_node *right = parse_expression(ast, tok_stream, -9999);
             return binop_node(ast, BINOP_RANGE, left, right);
             break;
@@ -569,7 +559,7 @@ ast_node *parse_infix_and_postfix(ast *ast, token_stream *tok_stream, i32 prec, 
         case TOKEN_KIND_LEFT_SHIFT_EQUAL:
         case TOKEN_KIND_COLON_COLON:
         case TOKEN_KIND_COLON_EQUAL: {
-            eat_token(tok_stream, 1);  // consume the operator
+            eat_token(tok_stream, tok.kind);  // consume the operator
             ast_node *right = parse_expression(ast, tok_stream, prec - 1); // -1 for right-assoc
             binop_kind kind = binop_from_token(tok);
             return binop_node(ast, kind, left, right);
@@ -584,7 +574,7 @@ ast_node *parse_infix_and_postfix(ast *ast, token_stream *tok_stream, i32 prec, 
 }
 
 ast_node *parse_block(ast *ast, token_stream *tok_stream) {
-    eat_token(tok_stream, 1); // {
+    eat_token(tok_stream, '{');
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_BLOCK;
     node->block.statements = NULL;
@@ -592,12 +582,12 @@ ast_node *parse_block(ast *ast, token_stream *tok_stream) {
         ast_node *stmt = parse_statement(ast, tok_stream);
         da_push(node->block.statements, stmt);
     }
-    eat_token(tok_stream, 1); // }
+    eat_token(tok_stream, '}'); // }
     return node;
 }
 
 ast_node *parse_if(ast *ast, token_stream *tok_stream) {
-    eat_token(tok_stream, 1); // if
+    eat_token(tok_stream, TOKEN_KIND_IF); // if
     ast_node *cond = parse_expression(ast, tok_stream, -9999);
     ast_node *then_block = parse_block(ast, tok_stream);
     ast_node *else_part = parse_else_or_else_if(ast, tok_stream);
@@ -608,10 +598,10 @@ ast_node *parse_else_or_else_if(ast *ast, token_stream *tok_stream) {
     token tok = peek_token(tok_stream);
     ast_node *node = NULL;
     if(tok.kind == TOKEN_KIND_ELSE) {
-        eat_token(tok_stream, 1); // else
+        eat_token(tok_stream, TOKEN_KIND_ELSE); // else
         tok = peek_token(tok_stream);
         if(tok.kind == TOKEN_KIND_IF) {
-            eat_token(tok_stream, 1); // if
+            eat_token(tok_stream, TOKEN_KIND_IF); // if
             node = parse_if(ast, tok_stream);
         } else if(tok.kind == '{') {
             node = parse_block(ast, tok_stream);
@@ -637,22 +627,22 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
             break;
         }
         case TOKEN_KIND_WHILE: {
-            eat_token(tok_stream, 1); // while
+            eat_token(tok_stream, TOKEN_KIND_WHILE);
             ast_node *cond = parse_expression(ast, tok_stream, -9999);
             ast_node *block = parse_block(ast, tok_stream);
             return while_node(ast, cond, block);
             break;
         }
         case TOKEN_KIND_FOR: {
-            eat_token(tok_stream, 1); // for
+            eat_token(tok_stream, TOKEN_KIND_FOR);
             ast_node *range = parse_expression(ast, tok_stream, -9999);
             ast_node *block = parse_block(ast, tok_stream);
             return for_node(ast, range, block);
             break;
         }
         case TOKEN_KIND_CONTINUE: {
-            eat_token(tok_stream, 1); // continue
-            tok = eat_token(tok_stream, 1);
+            eat_token(tok_stream, TOKEN_KIND_CONTINUE);
+            tok = eat_token(tok_stream, ';');
             if(tok.kind != ';') {
                 fatal_error("Error: Expected semicolon after continue statement.");
             }
@@ -660,8 +650,8 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
             break;
         }
         case TOKEN_KIND_BREAK: {
-            eat_token(tok_stream, 1); // break
-            tok = eat_token(tok_stream, 1);
+            eat_token(tok_stream, TOKEN_KIND_BREAK);
+            tok = eat_token(tok_stream, ';');
             if(tok.kind != ';') {
                 fatal_error("Error: Expected semicolon after break statement.");
             }
@@ -669,9 +659,9 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
             break;
         }
         case TOKEN_KIND_RETURN: {
-            eat_token(tok_stream, 1); // return
+            eat_token(tok_stream, TOKEN_KIND_RETURN);
             ast_node *expression = parse_expression(ast, tok_stream, -9999);
-            tok = eat_token(tok_stream, 1);
+            tok = eat_token(tok_stream, ';');
             if(tok.kind != ';') {
                 fatal_error("Error: Expected semicolon after return statement.");
             }
@@ -684,7 +674,7 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
         }
         case TOKEN_KIND_IDENTIFIER:
             ast_node *expr = parse_expression(ast, tok_stream, -9999);
-            tok = eat_token(tok_stream, 1);
+            tok = eat_token(tok_stream, ';');
             if (tok.kind != ';') {
                 fatal_error("Error: Expected semicolon after expression statement.");
             }
@@ -702,14 +692,11 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
     return NULL;
 }
 
-ast_node *parse_function_declaration(ast *ast, token_stream *tok_stream) {
-    ast_node *ident = ident_node(ast, tok_stream);
-    eat_token(tok_stream, 1); // ::
+ast_node *parse_function_declaration(ast *ast, token_stream *tok_stream, ast_node *ident) {
     ast_node **params = parse_function_parameters(ast, tok_stream);
     ast_node *return_type = NULL;
-    token tok = peek_token(tok_stream);
-    if(tok.kind == TOKEN_KIND_RIGHT_ARROW) {
-        eat_token(tok_stream, 1);
+    if(peek_token(tok_stream).kind == TOKEN_KIND_RIGHT_ARROW) {
+        eat_token(tok_stream, TOKEN_KIND_RIGHT_ARROW);
         if(peek_token(tok_stream).kind == TOKEN_KIND_IDENTIFIER) {
             return_type = ident_node(ast, tok_stream);
         }
@@ -718,10 +705,17 @@ ast_node *parse_function_declaration(ast *ast, token_stream *tok_stream) {
     return function_declaration_node(ast, ident, params, block, return_type);
 }
 
-ast_node *parse_declaration_of_struct_or_union_or_enum(ast *ast, token_stream *tok_stream) {
-    ast_node *ident = ident_node(ast, tok_stream);
-    eat_token(tok_stream, 1); // ::
-    token tok = eat_token(tok_stream, 1); // struct, enum or union keyword.
+ast_node *parse_declaration_of_struct_or_union_or_enum(ast *ast, token_stream *tok_stream, ast_node *ident) {
+    token tok = peek_token(tok_stream);
+    if(tok.kind == TOKEN_KIND_STRUCT) {
+        tok = eat_token(tok_stream, TOKEN_KIND_STRUCT);
+    } else if(tok.kind == TOKEN_KIND_ENUM) {
+        tok = eat_token(tok_stream, TOKEN_KIND_ENUM);
+    } else if(tok.kind == TOKEN_KIND_UNION) {
+        tok = eat_token(tok_stream, TOKEN_KIND_UNION);
+    } else {
+        fatal_error("we did a fucky wucky\n");
+    }
     ast_node *block = parse_block(ast, tok_stream);
     // this assumes that the calling code has verified that the next token
     // is either a struct, enum or union.
@@ -740,24 +734,19 @@ ast_node *parse_declaration_of_struct_or_union_or_enum(ast *ast, token_stream *t
 }
 
 ast_node *parse_declaration(ast *ast, token_stream *tok_stream) {
-    token tok = peek_token(tok_stream);
-    if(tok.kind == TOKEN_KIND_IDENTIFIER) {
-        tok = peek_next_token(tok_stream);
-        if(tok.kind == TOKEN_KIND_COLON_COLON) {
-            tok = peek_next_next_token(tok_stream);
-            if(tok.kind == '(') {
-                return parse_function_declaration(ast, tok_stream);
-            } else if(tok.kind == TOKEN_KIND_STRUCT || tok.kind == TOKEN_KIND_UNION || tok.kind == TOKEN_KIND_ENUM) {
-                return parse_declaration_of_struct_or_union_or_enum(ast, tok_stream);
-            } else {
-                fatal_error("Error: expected declaration of a function, union, enum, or struct after \"::\" token");
-            }
+    if (peek_token(tok_stream).kind != TOKEN_KIND_IDENTIFIER) {
+        fatal_error("Error: Expected a name belonging to a function, union, enum, or struct declaration.");
+    }
+    ast_node *ident = ident_node(ast, tok_stream);
+    eat_token(tok_stream, TOKEN_KIND_COLON_COLON);
 
-        } else {
-            fatal_error("Error: expected \"::\" token after identifier");
-        }
+    token tok = peek_token(tok_stream);
+    if (tok.kind == '(') {
+        return parse_function_declaration(ast, tok_stream, ident);
+    } else if (tok.kind == TOKEN_KIND_STRUCT || tok.kind == TOKEN_KIND_UNION || tok.kind == TOKEN_KIND_ENUM) {
+        return parse_declaration_of_struct_or_union_or_enum(ast, tok_stream, ident);
     } else {
-        fatal_error("Error: Expected a name belonging to a function declaration, union or struct.");
+        fatal_error("Error: Expected declaration of a function, union, enum, or struct after \"::\".");
     }
     return NULL;
 }
