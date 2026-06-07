@@ -1,6 +1,6 @@
 #include "tokenizer.h"
 
-b32 is_whitespace(unsigned char ch) {
+b32 is_whitespace(u8 ch) {
     return ((ch == ' ')  ||
             (ch == '\t') ||
             (ch == '\r') ||
@@ -9,24 +9,28 @@ b32 is_whitespace(unsigned char ch) {
             (ch == '\f'));
 }
 
-b32 is_number(unsigned char ch) {
+b32 is_number(u8 ch) {
     return ((ch >= '0') && (ch <= '9'));
 }
 
-b32 is_alpha(unsigned char ch) {
+b32 is_alpha(u8 ch) {
     return (((ch >= 'a') && (ch <= 'z')) || ((ch >= 'A') && (ch <= 'Z')));
 }
 
-b32 is_lower(unsigned char ch) {
+b32 is_lower(u8 ch) {
     return ((ch >= 'a') && (ch <= 'z'));
 }
 
-b32 is_upper(unsigned char ch) {
+b32 is_upper(u8 ch) {
     return ((ch >= 'A') && (ch <= 'Z'));
 }
 
-b32 is_alphanumeric(unsigned char ch) {
+b32 is_alphanumeric(u8 ch) {
     return(is_number(ch) || is_alpha(ch));
+}
+
+b32 is_printable(u8 ch) {
+    return ((ch >= 32) && (ch <= 127));
 }
 
 void eat_all_whitespaces(tokenizer *tokenizer) {
@@ -39,6 +43,16 @@ unsigned char eat_chars(tokenizer *tokenizer, size_t num_chars_to_eat) {
     unsigned char current_char = *tokenizer->at;
     if(tokenizer->at + num_chars_to_eat <= tokenizer->end) {
         tokenizer->at += num_chars_to_eat;
+        return current_char;
+    }
+    printf("Error: %s(): Tried to eat past end of file. Returning 0.\n", __func__);
+    return 0;
+}
+
+unsigned char eat_char(tokenizer *tokenizer) {
+    unsigned char current_char = *tokenizer->at;
+    if(tokenizer->at + 1 <= tokenizer->end) {
+        tokenizer->at += 1;
         return current_char;
     }
     printf("Error: %s(): Tried to eat past end of file. Returning 0.\n", __func__);
@@ -83,15 +97,15 @@ void make_token(tokenizer *tokenizer, token_kind kind, u64 token_len) {
     eat_chars(tokenizer, token_len);
 }
 
-void make_char_token(tokenizer *tokenizer, u64 token_len) {
+void make_char_token(tokenizer *tokenizer, u8 *char_start, u64 token_len) {
     token *tok = &tokenizer->tokens[tokenizer->token_count++];
     tok->kind = TOKEN_KIND_CHAR_LITERAL;
     if(token_len == 0) {
         tok->char_value = 0;
     } else if(token_len == 1) {
-        tok->char_value = tokenizer->at[0];
+        tok->char_value = char_start[0];
     } else if(token_len == 2) {
-        switch(tokenizer->at[1]) {
+        switch(char_start[1]) {
             case 'a':
                 tok->char_value = '\a';
                 break;
@@ -121,7 +135,9 @@ void make_char_token(tokenizer *tokenizer, u64 token_len) {
                 break;
         }
     }
-    eat_chars(tokenizer, token_len);
+    for(u64 i = 0; i < token_len; i++) {
+        eat_char(tokenizer);
+    }
 }
 
 void make_ident(tokenizer *tokenizer, u64 token_len) {
@@ -132,10 +148,10 @@ void make_ident(tokenizer *tokenizer, u64 token_len) {
     eat_chars(tokenizer, token_len);
 }
 
-void make_string_token(tokenizer *tokenizer, u64 token_len) {
+void make_string_token(tokenizer *tokenizer, u8 *string_start, u64 token_len) {
     token *tok = &tokenizer->tokens[tokenizer->token_count++];
     tok->kind = TOKEN_KIND_STRING_LITERAL;
-    tok->string_value.data = tokenizer->at;
+    tok->string_value.data = string_start;
     tok->string_value.length = token_len;
     eat_chars(tokenizer, token_len);
 }
@@ -191,35 +207,49 @@ token_stream tokenize(tokenizer *tokenizer) {
                 break;
             case '\'': {
                 u8 literal_length = 0;
-                ch = peek_next_char(tokenizer);
+                eat_chars(tokenizer, 1);
+                u8 *char_start = tokenizer->at;
+                ch = peek_char(tokenizer);
                 if(ch == '\\') { // if we get a backslash
-                    if(peek_chars(tokenizer, 3) == '\'') { // if we get a quote
+                    eat_chars(tokenizer, 1);
+                    ch = peek_next_char(tokenizer);
+                    if(ch == '\'') { // if we get a quote
                         literal_length = 2;
-                    } else {
+                    } else if(is_printable(ch)) {
                         fatal_error("Error: character literal contains multiple characters!");
+                    } else {
+                        fatal_error("Error: missing closing quote to terminate char literal");
                     }
                 } else if (ch == '\'') { // this is meant to handle empty char literals.
                     literal_length = 0;
                 } else {
-                    if(peek_next_next_char(tokenizer) == '\'') {
+                    if(peek_next_char(tokenizer) == '\'') {
                         literal_length = 1;
-                    } else {
+                    } else if(is_printable(ch)) {
                         fatal_error("Error: character literal contains multiple characters!");
+                    } else {
+                        fatal_error("Error: missing closing quote to terminate char literal");
                     }
                 }
-                eat_chars(tokenizer, 1);
-                make_char_token(tokenizer, literal_length);
+                make_char_token(tokenizer, char_start, literal_length);
                 eat_chars(tokenizer, 1);
                 break;
             }
             case '"': /* TODO: Handle escaping inside of string literals */
+                eat_char(tokenizer);
+                u8 *string_start = tokenizer->at;
                 i32 string_len = 0;
-                eat_chars(tokenizer, 1);
-                while(peek_chars(tokenizer, string_len) != '"') {
+                while(tokenizer->at < tokenizer->end && peek_char(tokenizer) != '"') {
                     string_len++;
+                    tokenizer->at++;
                 }
-                make_string_token(tokenizer, string_len);
-                eat_chars(tokenizer, 1);
+                if(tokenizer->at >= tokenizer->end) {
+                    fatal_error("Error: unterminated string literal");
+                }
+
+                tokenizer->at = string_start;
+                make_string_token(tokenizer, string_start, string_len);
+                eat_char(tokenizer);
                 break;
             case '0':
             case '1':

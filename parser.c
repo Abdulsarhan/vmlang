@@ -313,7 +313,7 @@ ast_node *parse_prefix(ast *ast, token_stream *tok_stream) {
         case '!':
         case TOKEN_KIND_MINUS_MINUS:
         case TOKEN_KIND_PLUS_PLUS:
-            eat_token(tok_stream, TOKEN_KIND_PLUS_PLUS);
+            eat_token(tok_stream, tok.kind);
             ast_node *operand = parse_prefix(ast, tok_stream);
             unary_kind kind = unary_from_token(tok, PREFIX);
             return unary_node(ast, kind, operand);
@@ -574,7 +574,8 @@ ast_node *parse_block(ast *ast, token_stream *tok_stream) {
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_BLOCK;
     node->block.statements = NULL;
-    while (peek_token(tok_stream).kind != '}') {
+    while (peek_token(tok_stream).kind != '}' &&
+           peek_token(tok_stream).kind != TOKEN_KIND_END_OF_STREAM) {
         ast_node *stmt = parse_statement(ast, tok_stream);
         da_push(node->block.statements, stmt);
     }
@@ -583,7 +584,7 @@ ast_node *parse_block(ast *ast, token_stream *tok_stream) {
 }
 
 ast_node *parse_if(ast *ast, token_stream *tok_stream) {
-    eat_token(tok_stream, TOKEN_KIND_IF); // if
+    eat_token(tok_stream, TOKEN_KIND_IF);
     ast_node *cond = parse_expression(ast, tok_stream, -9999);
     ast_node *then_block = parse_block(ast, tok_stream);
     ast_node *else_part = parse_else_or_else_if(ast, tok_stream);
@@ -597,7 +598,6 @@ ast_node *parse_else_or_else_if(ast *ast, token_stream *tok_stream) {
         eat_token(tok_stream, TOKEN_KIND_ELSE); // else
         tok = peek_token(tok_stream);
         if(tok.kind == TOKEN_KIND_IF) {
-            eat_token(tok_stream, TOKEN_KIND_IF); // if
             node = parse_if(ast, tok_stream);
         } else if(tok.kind == '{') {
             node = parse_block(ast, tok_stream);
@@ -710,7 +710,7 @@ ast_node *parse_declaration_of_struct_or_union_or_enum(ast *ast, token_stream *t
     } else if(tok.kind == TOKEN_KIND_UNION) {
         tok = eat_token(tok_stream, TOKEN_KIND_UNION);
     } else {
-        fatal_error("we did a fucky wucky\n");
+        fatal_error("Error: we did a fucky wucky\n");
     }
     ast_node *block = parse_block(ast, tok_stream);
     // this assumes that the calling code has verified that the next token

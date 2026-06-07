@@ -1,6 +1,7 @@
 // raddbg 0.9.25 project file
 
 recent_file: path: "parser.c"
+recent_file: path: "D:/a/_work/1/s/src/vctools/crt/vcruntime/src/string/amd64/memcpy.asm"
 recent_file: path: "vmlc.c"
 recent_file: path: "tokenizer.c"
 recent_file: path: "ds.h"
@@ -15,50 +16,15 @@ target:
 debug_info:
 {
   path: "C:/programming/vmlang/vmlc.pdb"
-  timestamp: 66216780203271
+  timestamp: 66216828377523
 }
 breakpoint:
 {
-  source_location: "vmlc.c:627:1"
+  source_location: "parser.c:381:1"
   hit_count: 0
 }
 breakpoint:
 {
-  source_location: "parser.c:461:1"
-  hit_count: 0
-}
-breakpoint:
-{
-  source_location: "parser.c:289:1"
-  hit_count: 0
-}
-breakpoint:
-{
-  source_location: "vmlc.c:52:1"
+  source_location: "parser.c:691:1"
   hit_count: 1
-}
-breakpoint:
-{
-  source_location: "parser.c:611:1"
-  hit_count: 1
-}
-breakpoint:
-{
-  source_location: "parser.c:684:1"
-  hit_count: 0
-}
-breakpoint:
-{
-  source_location: "parser.c:692:1"
-  hit_count: 1
-}
-breakpoint:
-{
-  source_location: "parser.c:713:1"
-  hit_count: 0
-}
-breakpoint:
-{
-  source_location: "parser.c:656:1"
-  hit_count: 0
 }

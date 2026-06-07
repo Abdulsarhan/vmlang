@@ -6,6 +6,8 @@
 
 // declared in order of root to leaves
 typedef enum node_kind {
+    NODE_KIND_NONE,
+
     NODE_KIND_FILE,
     NODE_KIND_IF,
     NODE_KIND_FOR,
@@ -76,7 +78,6 @@ typedef enum binop_kind {
     BINOP_EQUALS, // ==
     BINOP_COLON_COLON,
     BINOP_COLON_EQUAL, // :=
-    BINOP_RIGHT_ARROW, // ->
 }binop_kind;
 
 typedef enum unary_kind {
