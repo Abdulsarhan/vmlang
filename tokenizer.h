@@ -55,8 +55,6 @@ typedef enum token_kind {
     TOKEN_KIND_CONTINUE,
     TOKEN_KIND_BREAK,
     TOKEN_KIND_RETURN,
-    TOKEN_KIND_FALSE,
-    TOKEN_KIND_TRUE,
 }token_kind;
 
 typedef struct token token;

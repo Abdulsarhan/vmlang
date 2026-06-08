@@ -2,7 +2,15 @@ print_something :: (a: i32, b: i32) {
     print("hello!\n");
 }
 
-// comment
+/* 
+
+this is a multi-line comment
+
+
+*/
+
+// this is a comment
+
 main :: () -> i32 {
 
     while 1 {
@@ -17,9 +25,11 @@ main :: () -> i32 {
     character := '\0';
     character = '0';
     character = '';
+    this_boolean := false;
     integer :: i32;
     some_string := "this is a string";
+    string_with_escapes := "\n \a \";
     file, success := read_entire_file("../file_path");
     print_something(a, b);
-    return a * b / 2 + 3;
+    return a * b + 2 / 3;
 }

@@ -78,6 +78,28 @@ void make_token(tokenizer *tokenizer, token_kind kind) {
     tok->kind = kind;
 }
 
+u8 parse_escape_char(u8 *escape_start) {
+    if(escape_start[0] != '\\') {
+        fatal_error("Error: Expected backslash in multi-character char literal");
+    }
+    switch(escape_start[1]) {
+        case 'a':  return '\a';
+        case 'b':  return '\b';
+        case 'f':  return '\f';
+        case 'n':  return '\n';
+        case 'r':  return '\r';
+        case 't':  return '\t';
+        case 'v':  return '\v';
+        case '\'': return '\'';
+        case '\\': return '\\';
+        case '0':  return '\0';
+        default:
+            fatal_error("Error: Unsupported escape character in char literal.\n");
+            return 1;
+            break;
+    }
+}
+
 void make_char_token(tokenizer *tokenizer, u8 *char_start, u64 token_len) {
     token *tok = &tokenizer->tokens[tokenizer->token_count++];
     tok->kind = TOKEN_KIND_CHAR_LITERAL;
@@ -86,44 +108,7 @@ void make_char_token(tokenizer *tokenizer, u8 *char_start, u64 token_len) {
     } else if(token_len == 1) {
         tok->char_value = char_start[0];
     } else if(token_len == 2) {
-        if(char_start[0] != '\\') {
-            fatal_error("Error: Expected backslash in multi-character char literal");
-        }
-        switch(char_start[1]) {
-            case 'a':
-                tok->char_value = '\a';
-                break;
-            case 'b':
-                tok->char_value = '\b';
-                break;
-            case 'f':
-                tok->char_value = '\f';
-                break;
-            case 'n':
-                tok->char_value = '\n';
-                break;
-            case 'r':
-                tok->char_value = '\r';
-                break;
-            case 't':
-                tok->char_value = '\t';
-                break;
-            case 'v':
-                tok->char_value = '\v';
-                break;
-            case '\'':
-                tok->char_value = '\'';
-                break;
-            case '\\':
-                tok->char_value = '\\';
-                break;
-            case '0':
-                tok->char_value = '\0';
-                break;
-            default:
-                fatal_error("Error: unsupported escape character in char literal");
-                break;
-        }
+        tok->char_value = parse_escape_char(char_start);
     }
 }
 
@@ -358,6 +343,17 @@ token_stream tokenize(tokenizer *tokenizer) {
                             break;
                         }
                     }
+                } else if(match(tokenizer, '*')) {
+                    while(1) {
+                        ch = eat_char(tokenizer);
+                        if(ch == '*') {
+                            if(match(tokenizer, '/')) {
+                                break;
+                            }
+                        } else if(ch == 0) {
+                            break;
+                        }
+                    }
                 } else {
                     make_token(tokenizer, '/');
                 }
@@ -405,55 +401,64 @@ token_stream tokenize(tokenizer *tokenizer) {
                         eat_char(tokenizer);
                     }
                     string8 tok = {.data = ident_start, .length = ident_len};
-                    token_kind kind = TOKEN_KIND_IDENTIFIER;
                     switch(ident_len) {
                         case 2:
                             if(str_are_strings_equal(tok, STR8_LIT("if"))) {
-                                kind = TOKEN_KIND_IF;
+                                make_token(tokenizer, TOKEN_KIND_IF);
+                            } else {
+                                make_ident(tokenizer, ident_start, ident_len);
                             }
                             break;
                         case 3:
                             if(str_are_strings_equal(tok, STR8_LIT("for"))) {
-                                kind = TOKEN_KIND_FOR;
+                                make_token(tokenizer, TOKEN_KIND_FOR);
+                            } else {
+                                make_ident(tokenizer, ident_start, ident_len);
                             }
                             break;
                         case 4:
                             if(str_are_strings_equal(tok, STR8_LIT("else"))) {
-                                kind = TOKEN_KIND_ELSE;
+                                make_token(tokenizer, TOKEN_KIND_ELSE);
                             } else if(str_are_strings_equal(tok, STR8_LIT("enum"))) {
-                                kind = TOKEN_KIND_ENUM;
+                                make_token(tokenizer, TOKEN_KIND_ENUM);
                             } else if(str_are_strings_equal(tok, STR8_LIT("true"))) {
-                                kind = TOKEN_KIND_TRUE;
+                                make_bool_token(tokenizer, true);
+                            } else {
+                                make_ident(tokenizer, ident_start, ident_len);
                             }
                             break;
                         case 5:
                             if(str_are_strings_equal(tok, STR8_LIT("false"))) {
-                                kind = TOKEN_KIND_FALSE;
+                                make_bool_token(tokenizer, false);
                             } else if(str_are_strings_equal(tok, STR8_LIT("break"))) {
-                                kind = TOKEN_KIND_BREAK;
+                                make_token(tokenizer, TOKEN_KIND_BREAK);
                             } else if(str_are_strings_equal(tok, STR8_LIT("union"))) {
-                                kind = TOKEN_KIND_UNION;
+                                make_token(tokenizer, TOKEN_KIND_UNION);
                             } else if(str_are_strings_equal(tok, STR8_LIT("while"))) {
-                                kind = TOKEN_KIND_WHILE;
+                                make_token(tokenizer, TOKEN_KIND_WHILE);
+                            } else {
+                                make_ident(tokenizer, ident_start, ident_len);
                             }
                             break;
                         case 6:
                             if(str_are_strings_equal(tok, STR8_LIT("struct"))) {
-                                kind = TOKEN_KIND_STRUCT;
+                                make_token(tokenizer, TOKEN_KIND_STRUCT);
                             } else if(str_are_strings_equal(tok, STR8_LIT("return"))) {
-                                kind = TOKEN_KIND_RETURN;
+                                make_token(tokenizer, TOKEN_KIND_RETURN);
+                            } else {
+                                make_ident(tokenizer, ident_start, ident_len);
                             }
                             break;
                         case 8:
                             if(str_are_strings_equal(tok, STR8_LIT("continue"))) {
-                                kind = TOKEN_KIND_CONTINUE;
+                                make_token(tokenizer, TOKEN_KIND_CONTINUE);
+                            } else {
+                                make_ident(tokenizer, ident_start, ident_len);
                             }
                             break;
-                    }
-                    if(kind != TOKEN_KIND_IDENTIFIER) {
-                        make_token(tokenizer, kind);
-                    } else {
-                        make_ident(tokenizer, ident_start, ident_len);
+                        default:
+                            make_ident(tokenizer, ident_start, ident_len);
+                            break;
                     }
                 } else {
                     printf("Error: Unexpected character:");
