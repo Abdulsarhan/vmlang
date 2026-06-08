@@ -185,6 +185,7 @@ token_stream tokenize(tokenizer *tokenizer) {
             case '#':
             case '~':
             case ';':
+            case ',':
                 make_token(tokenizer, *(tokenizer->at - 1));
                 break;
             case '\'': {

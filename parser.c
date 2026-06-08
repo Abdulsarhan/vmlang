@@ -30,7 +30,7 @@ token eat_token(token_stream *stream, token_kind kind) {
     return current_tok;
 }
 
-ast_node *binop_node(ast *ast, u8 kind, ast_node *left, ast_node *right) {
+ast_node *binop_node(ast *ast, binop_kind kind, ast_node *left, ast_node *right) {
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_BINOP;
     node->binop.left = left;
@@ -106,6 +106,15 @@ ast_node *ident_node(ast *ast, token_stream *tok_stream) {
     return node;
 }
 
+ast_node *multi_assign_node(ast *ast, binop_kind kind, ast_node **left, ast_node *right) {
+    ast_node *node = &ast->nodes[ast->node_count++];
+    node->kind = NODE_KIND_MULTI_ASSIGN;
+    node->multi_assign.kind = kind;
+    node->multi_assign.left = left;
+    node->multi_assign.right = right;
+    return node;
+}
+
 ast_node *struct_declaration_node(ast *ast, ast_node *ident, ast_node *block) {
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_STRUCT;
@@ -130,10 +139,10 @@ ast_node *enum_declaration_node(ast *ast, ast_node *ident, ast_node *block) {
     return node;
 }
 
-ast_node *function_declaration_node(ast *ast, ast_node *ident, ast_node **params, ast_node *block, ast_node *return_type) {
+ast_node *function_declaration_node(ast *ast, ast_node *function_name, ast_node **params, ast_node *block, ast_node *return_type) {
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_FUNCTION_DECLARATION;
-    node->func_decl.callee = ident;
+    node->func_decl.function_name = function_name;
     node->func_decl.params = params;
     node->func_decl.block = block;
     node->func_decl.return_type = return_type;
@@ -143,7 +152,8 @@ ast_node *function_declaration_node(ast *ast, ast_node *ident, ast_node **params
 i32 get_operator_precedence(token tok) {
     i32 prec = 0;
     switch(tok.kind) {
-        case ',':
+        case ':':
+        case TOKEN_KIND_COLON_COLON:
             prec = 50;
             break;
         case '=':
@@ -493,6 +503,23 @@ binop_kind binop_from_token(token tok) {
     return kind;
 }
 
+binop_kind assignment_binop_from_token(token tok) {
+    switch (tok.kind) {
+        case TOKEN_KIND_COLON_EQUAL:       return BINOP_COLON_EQUAL;
+        case '=':                          return BINOP_ASSIGN;
+        case TOKEN_KIND_PLUS_EQUAL:        return BINOP_ADD_ASSIGN;
+        case TOKEN_KIND_MINUS_EQUAL:       return BINOP_MINUS_ASSIGN;
+        case TOKEN_KIND_MULTIPLY_EQUAL:    return BINOP_MUL_ASSIGN;
+        case TOKEN_KIND_DIVIDE_EQUAL:      return BINOP_DIV_ASSIGN;
+        case TOKEN_KIND_MOD_EQUAL:         return BINOP_MOD_ASSIGN;
+        case TOKEN_KIND_XOR_EQUAL:         return BINOP_XOR_ASSIGN;
+        case TOKEN_KIND_AND_EQUAL:         return BINOP_AND_ASSIGN;
+        case TOKEN_KIND_OR_EQUAL:          return BINOP_OR_ASSIGN;
+        case TOKEN_KIND_LEFT_SHIFT_EQUAL:  return BINOP_LEFT_SHIFT_ASSIGN;
+        case TOKEN_KIND_RIGHT_SHIFT_EQUAL: return BINOP_RIGHT_SHIFT_ASSIGN;
+        default:                           return BINOP_NONE;
+    }
+}
 ast_node *parse_infix_and_postfix(ast *ast, token_stream *tok_stream, i32 prec, ast_node *left) {
     token tok = peek_token(tok_stream);
     switch(tok.kind) {
@@ -506,7 +533,7 @@ ast_node *parse_infix_and_postfix(ast *ast, token_stream *tok_stream, i32 prec, 
         case '&':
         case '^':
         case '|':
-        case ',':
+        case ':':
         case TOKEN_KIND_AND_AND:
         case TOKEN_KIND_OR_OR:
 
@@ -669,6 +696,33 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
             break;
         }
         case TOKEN_KIND_IDENTIFIER:
+            token tok = peek_next_token(tok_stream);
+            if (tok.kind == ',') {
+                ast_node **lhs_list = NULL;
+                ast_node *first = ident_node(ast, tok_stream);
+                da_push(lhs_list, first);
+
+                while (peek_token(tok_stream).kind == ',') {
+                    eat_token(tok_stream, ',');
+                    ast_node *lhs = ident_node(ast, tok_stream);
+                    da_push(lhs_list, lhs);
+                }
+
+                tok = peek_token(tok_stream);
+                binop_kind assign_op = assignment_binop_from_token(tok);
+                if (assign_op == BINOP_NONE) {
+                    fatal_error("Error: expected assignment operator after multi-assignment target list.");
+                }
+                eat_token(tok_stream, tok.kind);
+                ast_node *rhs = parse_expression(ast, tok_stream, -9999);
+
+                tok = eat_token(tok_stream, ';');
+                if (tok.kind != ';') {
+                    fatal_error("Error: Expected semicolon after multi-assignment statement.");
+                }
+                return multi_assign_node(ast, assign_op, lhs_list, rhs);
+            }
+
             ast_node *expr = parse_expression(ast, tok_stream, -9999);
             tok = eat_token(tok_stream, ';');
             if (tok.kind != ';') {
@@ -688,6 +742,14 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
     return NULL;
 }
 
+/*
+   
+        :=
+        / \
+       /   \
+      /     \
+  exprlist    read_entire_file()
+*/
 ast_node *parse_function_declaration(ast *ast, token_stream *tok_stream, ast_node *ident) {
     ast_node **params = parse_function_parameters(ast, tok_stream);
     ast_node *return_type = NULL;

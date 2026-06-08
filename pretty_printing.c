@@ -78,8 +78,8 @@ internal void print_ast(ast_node *root, int depth) {
             }
             return;
         case NODE_KIND_FUNCTION_DECLARATION: {
-            printf("fn decl: %.*s", (int)root->func_decl.callee->ident.name.length,
-                                        root->func_decl.callee->ident.name.data);
+            printf("fn decl: %.*s", (int)root->func_decl.function_name->ident.name.length,
+                                        root->func_decl.function_name->ident.name.data);
             if(root->func_decl.return_type) {
                 printf(" -> %.*s", (int)root->func_decl.return_type->ident.name.length,
                                        root->func_decl.return_type->ident.name.data);
@@ -164,13 +164,21 @@ internal void print_ast(ast_node *root, int depth) {
             print_ast(root->binop.left, depth + 1);
             print_ast(root->binop.right, depth + 1);
             return;
+        case NODE_KIND_MULTI_ASSIGN:
+            printf("multi-assign: %s\n", binop_kind_to_string(root->multi_assign.kind));
+            print_indent(depth + 1); printf("lhs:\n");
+            for(int i = 0; i < da_len(root->multi_assign.left); i++) {
+                print_ast(root->multi_assign.left[i], depth + 2);
+            }
+            print_indent(depth + 1); printf("rhs:\n");
+            print_ast(root->multi_assign.right, depth + 2);
+            return;
         case NODE_KIND_UNARY:
             printf("unary: %s\n", unary_kind_to_string(root->unary.kind));
             print_ast(root->unary.operand, depth + 1);
             return;
         case NODE_KIND_IDENT:
-            printf("ident: %.*s\n", (int)root->ident.name.length,
-                                        root->ident.name.data);
+            printf("ident: %.*s\n", (int)root->ident.name.length, root->ident.name.data);
             return;
         case NODE_KIND_INT_LIT:
             printf("int: %lld\n", root->int_lit.value);
@@ -179,8 +187,7 @@ internal void print_ast(ast_node *root, int depth) {
             printf("float: %f\n", root->float_lit.value);
             return;
         case NODE_KIND_STRING_LIT:
-            printf("string: \"%.*s\"\n", (int)root->str_lit.value.length,
-                                              root->str_lit.value.data);
+            printf("string: \"%.*s\"\n", (int)root->str_lit.value.length, root->str_lit.value.data);
             return;
         case NODE_KIND_CHAR_LIT:
             printf("char: '%c'\n", root->char_lit.value);

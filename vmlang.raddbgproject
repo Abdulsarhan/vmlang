@@ -16,15 +16,15 @@ target:
 debug_info:
 {
   path: "C:/programming/vmlang/vmlc.pdb"
-  timestamp: 66216828377523
+  timestamp: 66216858425110
 }
 breakpoint:
 {
   source_location: "parser.c:381:1"
-  hit_count: 0
+  hit_count: 1
 }
 breakpoint:
 {
   source_location: "parser.c:691:1"
-  hit_count: 1
+  hit_count: 0
 }

@@ -1,4 +1,4 @@
-print_something :: () {
+print_something :: (a: i32, b: i32) {
     print("hello!\n");
 }
 
@@ -14,8 +14,12 @@ main :: () -> i32 {
     }
     a := 5;
     b := 5;
-    character := '\n';
+    character := '\0';
+    character = '0';
+    character = '';
+    integer :: i32;
     some_string := "this is a string";
-    print_something();
+    file, success := read_entire_file("../file_path");
+    print_something(a, b);
     return a * b / 2 + 3;
 }

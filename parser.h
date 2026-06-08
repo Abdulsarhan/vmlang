@@ -16,6 +16,7 @@ typedef enum node_kind {
     NODE_KIND_BREAK,
     NODE_KIND_CONTINUE,
     NODE_KIND_IDENT,
+    NODE_KIND_MULTI_ASSIGN,
     NODE_KIND_FUNCTION_DECLARATION,
     NODE_KIND_FUNCTION_PARAMETER,
     NODE_KIND_STRUCT,
@@ -108,9 +109,16 @@ struct ast_node_ident {
     string8 name;
 };
 
+typedef struct ast_node_multi_assign ast_node_multi_assign;
+struct ast_node_multi_assign {
+    ast_node **left;
+    binop_kind kind;
+    ast_node  *right;
+};
+
 typedef struct ast_node_binop ast_node_binop;
 struct ast_node_binop {
-    binop_kind kind; // we need this to specify what kind of binop this is.
+    binop_kind kind;
     ast_node *left;
     ast_node *right;
 };
@@ -125,7 +133,7 @@ struct ast_node_block {
 
 typedef struct ast_node_function_declaration ast_node_function_declaration;
 struct ast_node_function_declaration {
-    ast_node *callee;
+    ast_node *function_name;
     ast_node **params; // dynamic array.
     ast_node *block;
     ast_node *return_type;
@@ -215,6 +223,7 @@ struct ast_node {
         ast_node_return return_stmt;
         ast_node_function_declaration func_decl;
         ast_node_block block;
+        ast_node_multi_assign multi_assign;
         ast_node_binop binop;
         ast_node_unary unary;
         ast_node_function_call function_call;
