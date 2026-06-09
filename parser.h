@@ -12,16 +12,16 @@ typedef enum node_kind {
     NODE_KIND_IF,
     NODE_KIND_FOR,
     NODE_KIND_WHILE,
-    NODE_KIND_RETURN,
-    NODE_KIND_BREAK,
-    NODE_KIND_CONTINUE,
-    NODE_KIND_IDENT,
-    NODE_KIND_MULTI_ASSIGN,
     NODE_KIND_FUNCTION_DECLARATION,
     NODE_KIND_FUNCTION_PARAMETER,
     NODE_KIND_STRUCT,
     NODE_KIND_UNION,
     NODE_KIND_BLOCK,
+    NODE_KIND_RETURN,
+    NODE_KIND_BREAK,
+    NODE_KIND_CONTINUE,
+    NODE_KIND_IDENT,
+    NODE_KIND_MULTI_ASSIGN,
     NODE_KIND_ENUM,
     NODE_KIND_UNARY,
     NODE_KIND_BINOP,
@@ -32,6 +32,10 @@ typedef enum node_kind {
     NODE_KIND_CHAR_LIT,
     NODE_KIND_BOOL_LIT,
 }node_kind;
+
+typedef enum error_kind {
+    ERROR_FAILED,
+}error_kind;
 
 // maybe sort these by precedence?
 typedef enum binop_kind {
@@ -212,6 +216,11 @@ struct ast_node_enum {
     ast_node *block;
 };
 
+typedef struct ast_node_parser_error ast_node_parser_error;
+struct ast_node_parser_error {
+    error_kind kind;
+};
+
 struct ast_node {
     node_kind kind;
     union {
@@ -235,6 +244,8 @@ struct ast_node {
         ast_node_str_lit str_lit;
         ast_node_char_lit char_lit;
         ast_node_ident ident;
+
+        ast_node_parser_error parser_error;
     };
 };
 

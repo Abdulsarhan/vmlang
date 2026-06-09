@@ -410,97 +410,41 @@ ast_node **parse_function_parameters(ast *ast, token_stream *tok_stream) {
     return params;
 }
 
+
 binop_kind binop_from_token(token tok) {
-    binop_kind kind = BINOP_NONE;
     switch(tok.kind) {
-        case '+':
-            kind = BINOP_ADD;
-            break;
-        case '-':
-            kind = BINOP_SUB;
-            break;
-        case '/':
-            kind = BINOP_DIV;
-            break;
-        case '%':
-            kind = BINOP_MOD;
-            break;
-        case '*':
-            kind = BINOP_MUL;
-            break;
-        case '=':
-            kind = BINOP_ASSIGN;
-            break;
-        case ':':
-            kind = BINOP_COLON;
-            break;
-        case TOKEN_KIND_DOT_DOT:
-            kind = BINOP_RANGE;
-            break;
-        case TOKEN_KIND_EQUAL_EQUAL:
-            kind = BINOP_EQUALS;
-            break;
-        case TOKEN_KIND_PLUS_EQUAL:
-            kind = BINOP_ADD_ASSIGN;
-            break;
-        case TOKEN_KIND_MINUS_EQUAL:
-            kind = BINOP_MINUS_ASSIGN;
-            break;
-        case TOKEN_KIND_DIVIDE_EQUAL:
-            kind = BINOP_DIV_ASSIGN;
-            break;
-        case TOKEN_KIND_MOD_EQUAL:
-            kind = BINOP_MOD_ASSIGN;
-            break;
-        case TOKEN_KIND_MULTIPLY_EQUAL:
-            kind = BINOP_MUL_ASSIGN;
-            break;
-        case TOKEN_KIND_XOR_EQUAL:
-            kind = BINOP_XOR_ASSIGN;
-            break;
-        case TOKEN_KIND_AND_EQUAL:
-            kind = BINOP_AND_ASSIGN;
-            break;
-        case TOKEN_KIND_OR_EQUAL:
-            kind = BINOP_OR_ASSIGN;
-            break;
-        case TOKEN_KIND_NOT_EQUAL:
-            kind = BINOP_LOGICAL_NOT;
-            break;
-        case TOKEN_KIND_COLON_EQUAL:
-            kind = BINOP_COLON_EQUAL;
-            break;
-        case TOKEN_KIND_LEFT_SHIFT_EQUAL:
-            kind = BINOP_LEFT_SHIFT_ASSIGN;
-            break;
-        case TOKEN_KIND_RIGHT_SHIFT_EQUAL:
-            kind = BINOP_RIGHT_SHIFT_ASSIGN;
-            break;
-        case TOKEN_KIND_GREATER_THAN_EQUAL:
-            kind = BINOP_GREATER_THAN_ASSIGN;
-            break;
-        case TOKEN_KIND_LESS_THAN_EQUAL:
-            kind = BINOP_LESS_THAN_ASSIGN;
-            break;
-        case TOKEN_KIND_RIGHT_SHIFT:
-            kind = BINOP_RIGHT_SHIFT;
-            break;
-        case TOKEN_KIND_LEFT_SHIFT:
-            kind = BINOP_LEFT_SHIFT;
-            break;
-        case TOKEN_KIND_COLON_COLON:
-            kind = BINOP_COLON_COLON;
-            break;
-        case TOKEN_KIND_AND_AND:
-            kind = BINOP_LOGICAL_AND;
-            break;
-        case TOKEN_KIND_OR_OR:
-            kind = BINOP_LOGICAL_OR;
-            break;
-        default:
-            kind = BINOP_NONE;
+        case '+': return BINOP_ADD;
+        case '-': return BINOP_SUB;
+        case '/': return BINOP_DIV;
+        case '%': return BINOP_MOD;
+        case '*': return BINOP_MUL;
+        case '=': return BINOP_ASSIGN;
+        case ':': return BINOP_COLON;
+
+        case TOKEN_KIND_DOT_DOT:            return BINOP_RANGE;
+        case TOKEN_KIND_NOT_EQUAL:          return BINOP_LOGICAL_NOT;
+        case TOKEN_KIND_EQUAL_EQUAL:        return BINOP_EQUALS;
+        case TOKEN_KIND_PLUS_EQUAL:         return BINOP_ADD_ASSIGN;
+        case TOKEN_KIND_MINUS_EQUAL:        return BINOP_MINUS_ASSIGN;
+        case TOKEN_KIND_DIVIDE_EQUAL:       return BINOP_DIV_ASSIGN;
+        case TOKEN_KIND_MOD_EQUAL:          return BINOP_MOD_ASSIGN;
+        case TOKEN_KIND_MULTIPLY_EQUAL:     return BINOP_MUL_ASSIGN;
+        case TOKEN_KIND_XOR_EQUAL:          return BINOP_XOR_ASSIGN;
+        case TOKEN_KIND_AND_EQUAL:          return BINOP_AND_ASSIGN;
+        case TOKEN_KIND_OR_EQUAL:           return BINOP_OR_ASSIGN;
+        case TOKEN_KIND_COLON_EQUAL:        return BINOP_COLON_EQUAL;
+        case TOKEN_KIND_LEFT_SHIFT_EQUAL:   return BINOP_LEFT_SHIFT_ASSIGN;
+        case TOKEN_KIND_RIGHT_SHIFT_EQUAL:  return BINOP_RIGHT_SHIFT_ASSIGN;
+        case TOKEN_KIND_GREATER_THAN_EQUAL: return BINOP_GREATER_THAN_ASSIGN;
+        case TOKEN_KIND_LESS_THAN_EQUAL:    return BINOP_LESS_THAN_ASSIGN;
+        case TOKEN_KIND_RIGHT_SHIFT:        return BINOP_RIGHT_SHIFT;
+        case TOKEN_KIND_LEFT_SHIFT:         return BINOP_LEFT_SHIFT;
+        case TOKEN_KIND_COLON_COLON:        return BINOP_COLON_COLON;
+        case TOKEN_KIND_AND_AND:            return BINOP_LOGICAL_AND;
+        case TOKEN_KIND_OR_OR:              return BINOP_LOGICAL_OR;
+        default:                            return BINOP_NONE;
     }
-    return kind;
+    return BINOP_NONE;
 }
 
 binop_kind assignment_binop_from_token(token tok) {
@@ -519,7 +463,20 @@ binop_kind assignment_binop_from_token(token tok) {
         case TOKEN_KIND_RIGHT_SHIFT_EQUAL: return BINOP_RIGHT_SHIFT_ASSIGN;
         default:                           return BINOP_NONE;
     }
+    return BINOP_NONE;
 }
+
+void print_tokens(token *first_token_to_print, i32 num_tokens_to_print) {
+    mem_arena *arena = arena_get_scratch();
+
+    printf("                | ");
+    for(int i = 0 ; i < num_tokens_to_print; i++) {
+        string8 str = token_to_string(arena, first_token_to_print[i]);
+        printf("%.*s ", (int)str.length, str.data);
+    }
+    printf("\n");
+}
+
 ast_node *parse_infix_and_postfix(ast *ast, token_stream *tok_stream, i32 prec, ast_node *left) {
     token tok = peek_token(tok_stream);
     switch(tok.kind) {
@@ -584,6 +541,13 @@ ast_node *parse_infix_and_postfix(ast *ast, token_stream *tok_stream, i32 prec, 
         case TOKEN_KIND_COLON_EQUAL: {
             eat_token(tok_stream, tok.kind);  // consume the operator
             ast_node *right = parse_expression(ast, tok_stream, prec - 1); // -1 for right-assoc
+            if(!right) {
+                mem_arena *arena = arena_get_scratch();
+                string8 str = token_to_string(arena, tok);
+                printf("%s:%d:%d: Error: Expected expression after %.*s operator\n",tok_stream->file, tok.l0, tok.c0, (int)str.length, str.data);
+                print_tokens(tok_stream->checkpoint, tok_stream->at - tok_stream->checkpoint + 1);
+                fatal_error("");
+            }
             binop_kind kind = binop_from_token(tok);
             return binop_node(ast, kind, left, right);
             break;
@@ -603,7 +567,9 @@ ast_node *parse_block(ast *ast, token_stream *tok_stream) {
     node->block.statements = NULL;
     while (peek_token(tok_stream).kind != '}' &&
            peek_token(tok_stream).kind != TOKEN_KIND_END_OF_STREAM) {
+        tok_stream->checkpoint = tok_stream->at;
         ast_node *stmt = parse_statement(ast, tok_stream);
+        tok_stream->checkpoint = tok_stream->at;
         da_push(node->block.statements, stmt);
     }
     eat_token(tok_stream, '}'); // }
@@ -742,14 +708,6 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
     return NULL;
 }
 
-/*
-   
-        :=
-        / \
-       /   \
-      /     \
-  exprlist    read_entire_file()
-*/
 ast_node *parse_function_declaration(ast *ast, token_stream *tok_stream, ast_node *ident) {
     ast_node **params = parse_function_parameters(ast, tok_stream);
     ast_node *return_type = NULL;

@@ -80,14 +80,20 @@ struct tokenizer {
     u8 *end;
     token *tokens;
     size_t token_count;
+    u64 current_line_number;
+    u64 current_column_number;
+    u8 *file_path;
 };
 
 typedef struct token_stream token_stream;
 struct token_stream {
     token *at;
     token *end;
+    token *checkpoint;
+    u8 *file;
 };
 
 token_stream tokenize(tokenizer *tokenizer);
+string8 token_to_string(mem_arena *arena, token tok);
 
 #endif /* TOKENIZER_H */

@@ -11,6 +11,24 @@ this is a multi-line comment
 
 // this is a comment
 
+onion :: union {
+    a: i32;
+    b: f32;
+    c: string;
+}
+
+strook :: struct {
+    a: i32;
+    b: f32;
+    c: string;
+}
+
+fruits :: enum {
+    apple;
+    orange;
+    mango;
+}
+
 main :: () -> i32 {
 
     while 1 {
@@ -20,6 +38,7 @@ main :: () -> i32 {
     if 1 {
 
     }
+
     a := 5;
     b := 5;
     character := '\0';
@@ -28,7 +47,8 @@ main :: () -> i32 {
     this_boolean := false;
     integer :: i32;
     some_string := "this is a string";
-    string_with_escapes := "\n \a \";
+    string_with_escapes := "\n \a ";
+
     file, success := read_entire_file("../file_path");
     print_something(a, b);
     return a * b + 2 / 3;

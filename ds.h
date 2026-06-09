@@ -606,7 +606,7 @@ DSAPI void arena_pop_to(mem_arena *arena, size_t pos);
 DSAPI void arena_clear(mem_arena *arena);
 DSAPI void arena_destroy(mem_arena *arena);
 DSAPI int arena_reset_region(const mem_arena *arena, void *region_start, size_t region_size);
-DSAPI mem_arena arena_get_scratch(mem_arena *source);
+DSAPI mem_arena *arena_get_scratch();
 
 /* string slicing */
 DSAPI string8 str_from_to(string8 str, size_t from, size_t to);
@@ -624,7 +624,9 @@ DSAPI string8 str_prefix(string8 str, u64 length);
 DSAPI b32 str_are_strings_equal(string8 a, string8 b);
 
 /* convert numbers to string */
+DSAPI string8 str_from_char(mem_arena *arena, u8 ch);
 DSAPI string8 str_from_i32(mem_arena *arena, i32 value);
+DSAPI string8 str_from_i64(mem_arena *arena, i64 value);
 DSAPI string8 str_from_f32(mem_arena *arena, f32 value);
 DSAPI string8 str_from_f64(mem_arena *arena, f64 value);
 
@@ -929,9 +931,14 @@ DSAPI int arena_reset_region(const mem_arena *arena, void *region_start, size_t 
     return -1;
 }
 
-DSAPI mem_arena arena_get_scratch(mem_arena *source) {
-    mem_arena scratch = *source;
-    return scratch;
+global u8 g_scratch_mem[16384];
+DSAPI mem_arena *arena_get_scratch() {
+    mem_arena *arena = (mem_arena*)g_scratch_mem;
+    arena->pos = ARENA_BASE_POS;
+    arena->committed_size = 16384;
+    arena->reserved_size = 16384;
+    arena->page_size = 4096;
+    return arena;
 }
 
 #else
@@ -1160,9 +1167,28 @@ DSAPI b32 str_are_strings_equal(string8 a, string8 b) {
     return true;
 }
 
+DSAPI string8 str_from_char(mem_arena *arena, u8 ch) {
+    string8 str;
+    str.data = (u8 *)arena_push(arena, 1, 1, 0);
+    str.length = 1;
+    str.data[0] = ch;
+    return str;
+}
+
 DSAPI string8 str_from_i32(mem_arena *arena, i32 value) {
     u8 tmp[32] = {0};
     int length = snprintf((char*)tmp, 32, "%d", value);
+
+    string8 str;
+    str.data = (u8 *)arena_push(arena, length, 1, 0);
+    str.length = length;
+    ds_memcpy(str.data, tmp, length);
+    return str;
+}
+
+DSAPI string8 str_from_i64(mem_arena *arena, i64 value) {
+    u8 tmp[64] = {0};
+    int length = snprintf((char*)tmp, 64, "%lld", value);
 
     string8 str;
     str.data = (u8 *)arena_push(arena, length, 1, 0);

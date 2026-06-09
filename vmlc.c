@@ -39,6 +39,9 @@ int main(int argc, char **argv) {
     tokenizer.end = file + file_size;
     tokenizer.tokens = ARENA_PUSH_ARRAY(arena, token, 16384);
     tokenizer.token_count = 0;
+    tokenizer.current_line_number = 1;
+    tokenizer.current_column_number = 0;
+    tokenizer.file_path = (u8*)argv[1];
 
     token_stream stream = tokenize(&tokenizer);
     assert(stream.at);
