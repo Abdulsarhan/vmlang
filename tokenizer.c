@@ -84,7 +84,8 @@ u8 peek_next_char(const tokenizer *tokenizer) {
 
 u8 parse_escape_char(u8 *escape_start) {
     if(escape_start[0] != '\\') {
-        fatal_error("Error: Expected backslash in multi-character char literal\n");
+        report_error("Error: Expected backslash in multi-character char literal\n");
+        return 1;
     }
     switch(escape_start[1]) {
         case 'a':  return '\a';
@@ -98,14 +99,14 @@ u8 parse_escape_char(u8 *escape_start) {
         case '\\': return '\\';
         case '0':  return '\0';
         default:
-            fatal_error("Error: Invalid escape character in char literal.\n");
+            report_error("Error: Invalid escape character in char literal.\n");
             return 1;
             break;
     }
 }
 
-string8 token_to_string(mem_arena *arena, token tok) {
-    switch(tok.kind) {
+string8 token_kind_to_string(token_kind kind) {
+    switch(kind) {
         case '+':                                return STR8_LIT("+");
         case '-':                                return STR8_LIT("-");
         case '/':                                return STR8_LIT("/");
@@ -120,7 +121,6 @@ string8 token_to_string(mem_arena *arena, token tok) {
         case '|':                                return STR8_LIT("|");
         case ';':                                return STR8_LIT(";");
 
-        case TOKEN_KIND_IDENTIFIER:              return tok.ident_string;
         case TOKEN_KIND_PLUS_EQUAL:              return STR8_LIT("+=");
         case TOKEN_KIND_MINUS_EQUAL:             return STR8_LIT("-=");
         case TOKEN_KIND_DIVIDE_EQUAL:            return STR8_LIT("/=");
@@ -145,11 +145,6 @@ string8 token_to_string(mem_arena *arena, token tok) {
         case TOKEN_KIND_OR_OR:                   return STR8_LIT("||");
         case TOKEN_KIND_PLUS_PLUS:               return STR8_LIT("++");
         case TOKEN_KIND_MINUS_MINUS:             return STR8_LIT("--");
-        case TOKEN_KIND_INT_LITERAL:             return str_from_i64(arena, tok.integer_value);
-        case TOKEN_KIND_FLOAT_LITERAL:           return str_from_f64(arena, tok.float_value);
-        case TOKEN_KIND_CHAR_LITERAL:            return str_from_char(arena, tok.char_value);
-        case TOKEN_KIND_BOOL_LITERAL:            return tok.bool_value ? STR8_LIT("true") : STR8_LIT("false");
-        case TOKEN_KIND_STRING_LITERAL:          return tok.string_value;
         case TOKEN_KIND_END_OF_STREAM:           return STR8_LIT("end_of_stream");
         case TOKEN_KIND_IF:                      return STR8_LIT("if");
         case TOKEN_KIND_ELSE:                    return STR8_LIT("else");
@@ -161,8 +156,22 @@ string8 token_to_string(mem_arena *arena, token tok) {
         case TOKEN_KIND_CONTINUE:                return STR8_LIT("continue");
         case TOKEN_KIND_BREAK:                   return STR8_LIT("break");
         case TOKEN_KIND_RETURN:                  return STR8_LIT("return");
+        default:                                 return STR8_LIT("");
     }
-    return STR8_LIT("None");
+    return STR8_LIT("");
+}
+
+string8 token_to_string(mem_arena *arena, token tok) {
+    switch(tok.kind) {
+        case TOKEN_KIND_IDENTIFIER:              return tok.ident_string;
+        case TOKEN_KIND_INT_LITERAL:             return str_from_i64(arena, tok.integer_value);
+        case TOKEN_KIND_FLOAT_LITERAL:           return str_from_f64(arena, tok.float_value);
+        case TOKEN_KIND_CHAR_LITERAL:            return str_from_char(arena, tok.char_value);
+        case TOKEN_KIND_BOOL_LITERAL:            return tok.bool_value ? STR8_LIT("true") : STR8_LIT("false");
+        case TOKEN_KIND_STRING_LITERAL:          return tok.string_value;
+        default:                                 return token_kind_to_string(tok.kind);
+    }
+    return STR8_LIT("");
 }
 
 void set_line_and_column_number_on_token(tokenizer *tokenizer, token *tok, u64 token_len) {
@@ -181,16 +190,20 @@ void make_token(tokenizer *tokenizer, token_kind kind) {
     set_line_and_column_number_on_token(tokenizer, tok, wrong_length);
 }
 
-void make_char_token(tokenizer *tokenizer, u8 *char_start, u64 token_len) {
+void make_char_token(tokenizer *tokenizer, u8 *char_start, i8 token_len, b32 error) {
     token *tok = &tokenizer->tokens[tokenizer->token_count++];
-    tok->kind = TOKEN_KIND_CHAR_LITERAL;
+    tok->kind = error ? TOKEN_KIND_ERROR : TOKEN_KIND_CHAR_LITERAL;
     if(token_len == 0) {
         tok->char_value = 0;
     } else if(token_len == 1) {
         tok->char_value = char_start[0];
     } else if(token_len == 2) {
         tok->char_value = parse_escape_char(char_start);
+        if(tok->char_value == 1) {
+            tok->kind = TOKEN_KIND_ERROR;
+        }
     }
+
     set_line_and_column_number_on_token(tokenizer, tok, token_len);
 }
 
@@ -202,9 +215,9 @@ void make_ident(tokenizer *tokenizer, u8 *ident_start, u64 token_len) {
     set_line_and_column_number_on_token(tokenizer, tok, token_len);
 }
 
-void make_string_token(tokenizer *tokenizer, u8 *string_start, u64 token_len) {
+void make_string_token(tokenizer *tokenizer, u8 *string_start, u64 token_len, b32 error) {
     token *tok = &tokenizer->tokens[tokenizer->token_count++];
-    tok->kind = TOKEN_KIND_STRING_LITERAL;
+    tok->kind = error ? TOKEN_KIND_ERROR : TOKEN_KIND_STRING_LITERAL;
     tok->string_value.data = string_start;
     tok->string_value.length = token_len;
     set_line_and_column_number_on_token(tokenizer, tok, token_len);
@@ -259,7 +272,8 @@ token_stream tokenize(tokenizer *tokenizer) {
                 make_token(tokenizer, *(tokenizer->at - 1));
                 break;
             case '\'': {
-                u8 literal_length = 0;
+                i8 literal_length = 0;
+                b32 error = 0;
                 u8 *char_start = tokenizer->at;
                 if(match(tokenizer, '\\')) {
                     if(is_printable(peek_char(tokenizer))) {
@@ -267,7 +281,9 @@ token_stream tokenize(tokenizer *tokenizer) {
                         if(match(tokenizer, '\'')) {
                             literal_length = 2;
                         } else {
-                            fatal_error("Error: missing closing quote to terminate char literal");
+                            report_error("Error: missing closing quote to terminate char literal\n");
+                            printf("%.*s\n", (int)tokenizer->current_column_number, tokenizer->at - tokenizer->current_column_number);
+                            error = 1;
                         }
                     }
                 } else if(is_printable(peek_char(tokenizer)) && peek_char(tokenizer) != '\'') {
@@ -275,30 +291,36 @@ token_stream tokenize(tokenizer *tokenizer) {
                     if(match(tokenizer, '\'')) {
                         literal_length = 1;
                     } else {
-                        fatal_error("Error: missing closing quote to terminate char literal");
+                        report_error("Error: missing closing quote to terminate char literal\n");
+                        printf("%.*s\n", (int)tokenizer->current_column_number, tokenizer->at - tokenizer->current_column_number);
+                        error = 1;
                     }
                 } else if(match(tokenizer, '\'')) {
                     literal_length = 0;
                 } else {
-                    fatal_error("Error: missing closing quote to terminate char literal");
+                    report_error("Error: missing closing quote to terminate char literal\n");
+                    printf("%.*s\n", (int)tokenizer->current_column_number, tokenizer->at - tokenizer->current_column_number);
+                    error = 1;
                 }
-                make_char_token(tokenizer, char_start, literal_length);
+                make_char_token(tokenizer, char_start, literal_length, error);
                 break;
             }
             case '"': /* TODO: Handle escaping inside of string literals */
                 u8 *string_start = tokenizer->at;
-                i32 string_len = 0;
+                u64 string_len = 0;
+                b32 error = 0;
 
                 while(tokenizer->at < tokenizer->end && *tokenizer->at != '"') {
                     string_len++;
                     eat_char(tokenizer);
                 }
                 if(tokenizer->at >= tokenizer->end) {
-                    fatal_error("Error: unterminated string literal");
+                    report_error("Error: unterminated string literal\n");
+                    error = 1;
                 }
 
                 eat_char(tokenizer);
-                make_string_token(tokenizer, string_start, string_len);
+                make_string_token(tokenizer, string_start, string_len, error);
                 break;
             case '0':
             case '1':
@@ -316,6 +338,10 @@ token_stream tokenize(tokenizer *tokenizer) {
                 while(tokenizer->at < tokenizer->end) {
                     u8 ch = peek_char(tokenizer);
                     if(ch == '.' && !found_decimal) {
+                        // Don't consume the dot if the next char is also a dot (range operator)
+                        if(peek_next_char(tokenizer) == '.') {
+                            break;
+                        }
                         found_decimal = true;
                         is_float = true;
                     } else if(ch == '.' && found_decimal) {
@@ -546,7 +572,7 @@ token_stream tokenize(tokenizer *tokenizer) {
                             break;
                     }
                 } else {
-                    printf("Error: Unexpected character:");
+                    report_error("Error: Unexpected character:\n");
                 }
                 break;
             }
@@ -555,7 +581,6 @@ token_stream tokenize(tokenizer *tokenizer) {
 
     token_stream stream = {0};
     stream.at = tokenizer->tokens;
-    stream.end = tokenizer->tokens + tokenizer->token_count;
     stream.checkpoint = stream.at;
     stream.file = tokenizer->file_path;
     return stream;

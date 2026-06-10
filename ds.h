@@ -636,7 +636,7 @@ DSAPI i64 str_to_i64(string8 str);
 DSAPI f64 str_to_f64(string8 str);
 
 /* convert a string to a c string */
-DSAPI const char *ds_to_cstr(mem_arena *arena, string8 str);
+DSAPI const char *str_to_cstr(mem_arena *arena, string8 str);
 
 DSAPI string_builder sb_create(mem_arena *arena);
 DSAPI string8 sb_append(string_builder *sb, string8 str);
@@ -1289,7 +1289,7 @@ DSAPI f64 str_to_f64(string8 str) {
     return result;
 }
 
-DSAPI const char *ds_to_cstr(mem_arena *arena, string8 str) {
+DSAPI const char *str_to_cstr(mem_arena *arena, string8 str) {
     char *c_string = (char *)arena_push(arena, str.length + 1, 1, 1);
     ds_memcpy(c_string, str.data, str.length);
     return c_string;

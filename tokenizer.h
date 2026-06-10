@@ -55,6 +55,7 @@ typedef enum token_kind {
     TOKEN_KIND_CONTINUE,
     TOKEN_KIND_BREAK,
     TOKEN_KIND_RETURN,
+    TOKEN_KIND_ERROR,
 }token_kind;
 
 typedef struct token token;
@@ -88,12 +89,12 @@ struct tokenizer {
 typedef struct token_stream token_stream;
 struct token_stream {
     token *at;
-    token *end;
     token *checkpoint;
     u8 *file;
 };
 
 token_stream tokenize(tokenizer *tokenizer);
 string8 token_to_string(mem_arena *arena, token tok);
+string8 token_kind_to_string(token_kind kind);
 
 #endif /* TOKENIZER_H */

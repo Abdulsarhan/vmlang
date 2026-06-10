@@ -31,10 +31,12 @@ typedef enum node_kind {
     NODE_KIND_STRING_LIT,
     NODE_KIND_CHAR_LIT,
     NODE_KIND_BOOL_LIT,
+    NODE_KIND_ERROR,
 }node_kind;
 
 typedef enum error_kind {
-    ERROR_FAILED,
+    ERROR_KIND_LEX_ERROR,
+    ERROR_KIND_PARSE_ERROR,
 }error_kind;
 
 // maybe sort these by precedence?
@@ -216,8 +218,8 @@ struct ast_node_enum {
     ast_node *block;
 };
 
-typedef struct ast_node_parser_error ast_node_parser_error;
-struct ast_node_parser_error {
+typedef struct ast_node_error ast_node_error;
+struct ast_node_error {
     error_kind kind;
 };
 
@@ -245,14 +247,15 @@ struct ast_node {
         ast_node_char_lit char_lit;
         ast_node_ident ident;
 
-        ast_node_parser_error parser_error;
+        ast_node_error error;
     };
 };
 
 typedef struct ast ast;
 struct ast {
     ast_node *nodes;
-    size_t node_count;
+    u64 node_count;
+    u64 error_count;
 };
 
 ast_node *parse_file(ast *ast, token_stream *tok_stream);

@@ -8,7 +8,7 @@
 #undef DS_IMPLEMENTATION
 #undef PAL_IMPLEMENTATION
 
-#define fatal_error(str, ...) printf(str, __VA_ARGS__); assert(0)
+#define report_error(...) printf("Error: %s\n", __VA_ARGS__);
 
 #include "tokenizer.h"
 #include "tokenizer.c"
@@ -45,16 +45,19 @@ int main(int argc, char **argv) {
 
     token_stream stream = tokenize(&tokenizer);
     assert(stream.at);
-    assert(stream.end);
-    assert(stream.end > stream.at);
 
     ast ast = {0};
     ast.nodes = ARENA_PUSH_ARRAY(arena, ast_node, 16384);
     ast.node_count = 0;
+    ast.error_count = 0;
 
     ast_node *root = parse_file(&ast, &stream);
 
-    print_ast(root, 0);
+    if(ast.error_count) {
+        return -1;
+    } else {
+        print_ast(root, 0);
+    }
 
     //generate_code(root);
 
