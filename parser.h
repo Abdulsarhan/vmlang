@@ -129,9 +129,6 @@ struct ast_node_binop {
     ast_node *right;
 };
 
-// Not sure if I like this. Might just have the blocks
-// in the nodes that belong to them.
-
 typedef struct ast_node_block ast_node_block;
 struct ast_node_block {
     ast_node **statements; // dynamic array.
@@ -225,6 +222,12 @@ struct ast_node_error {
 
 struct ast_node {
     node_kind kind;
+    i32 l0, c0;
+    i32 l1, c1;
+    // represents the start of the line, and the length
+    // of the line that the ast node came from.
+    string8 line_in_file;
+
     union {
         ast_node_file file;
 

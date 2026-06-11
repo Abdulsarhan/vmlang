@@ -1,5 +1,6 @@
 // raddbg 0.9.25 project file
 
+recent_file: path: "../tcc/tinycc/win32/examples/hello_win.c"
 recent_file: path: "parser.c"
 recent_file: path: "vmlc.c"
 recent_file: path: "D:/a/_work/1/s/src/vctools/crt/vcruntime/src/string/amd64/memcpy.asm"
@@ -9,7 +10,6 @@ recent_file: path: "D:/a/_work/1/s/src/vctools/crt/vcstartup/src/startup/exe_com
 target:
 {
   executable: "vmlc.exe"
-  enabled: 1
   arguments: "main.vml"
   working_directory: ""
 }
@@ -21,5 +21,30 @@ debug_info:
 breakpoint:
 {
   source_location: "parser.c:657:1"
-  hit_count: 1
+  hit_count: 0
+}
+debug_info:
+{
+  path: "C:/programming/tcc/tinycc/win32/hello_win.exe"
+  timestamp: 66217186472295
+}
+debug_info:
+{
+  path: "C:/programming/tcc/tinycc/win32/hello_win.pdb"
+  timestamp: 66217186560252
+}
+breakpoint:
+{
+  source_location: "../tcc/tinycc/win32/examples/hello_win.c:81:1"
+  hit_count: 0
+}
+debug_info:
+{
+  path: "C:/programming/tcc/tinycc/win32/examples/hello_win.pdb"
+  timestamp: 66217186646598
+}
+debug_info:
+{
+  path: "C:/programming/tcc/tinycc/win32/examples/hello_win.exe"
+  timestamp: 66217187060362
 }

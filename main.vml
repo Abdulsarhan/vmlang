@@ -1,65 +1,13 @@
-print_something :: (a: i32, b: i32) {
-    print("hello!\n");
-}
-
 /*
 this is a multi-line comment
 */
 
 // this is a comment
 
-onion ::  {
-    a: i32;
-    b: f32;
-    c: string;
-}
-
-strook :: struct {
-    a: i32;
-    b: f32;
-    c: string;
-}
-
-fruits :: enum {
-    apple;
-    orange;
-    mango;
-}
-
 main :: () -> i32 {
 
-    while 1 {
-
-    }
-
-    for 1..10 {
-
-    }
-
-    if 1 {
-
-    } else if 1 {
-
-    } else if 3 {
-
-    } else if 4 {
-
-    } else {
-
-    }
-
-    100;
     a := 6;
     b := 5;
-    character := ;
-    character = ;
-    character = ;
-    this_boolean := false;
-    integer :: i32;
-    some_string := "this is a string";
-    string_with_escapes := "\n \a ";
 
-    file, success := read_entire_file("../file_path");
-    print_something(a, b);
     return a * b + 2 / 3;
 }

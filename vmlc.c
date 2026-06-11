@@ -16,6 +16,9 @@
 #include "parser.h"
 #include "parser.c"
 
+#include "typer.h"
+#include "typer.c"
+
 #include "pretty_printing.h"
 #include "pretty_printing.c"
 
@@ -53,7 +56,13 @@ int main(int argc, char **argv) {
 
     ast_node *root = parse_file(&ast, &stream);
 
-    if(ast.error_count) {
+    typer tp;
+    tp.loop_depth = 0;
+    tp.switch_depth = 0;
+    tp.error_count = 0;
+    typecheck_file(&tp, root);
+
+    if(ast.error_count || tp.error_count) {
         return -1;
     } else {
         print_ast(root, 0);

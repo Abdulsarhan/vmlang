@@ -539,12 +539,10 @@ ast_node *parse_infix_and_postfix(ast *ast, token_stream *tok_stream, i32 prec, 
             string8 str = token_to_string(arena, tok);
             const char *cstr = str_to_cstr(arena, str);
 
-            if(!right) {
+            if(right->kind == NODE_KIND_ERROR) {
+                printf("node was an error!\n");
                 report_error_new(ast, tok_stream, tok, "Expected expression after '%s'", cstr);
                 return error_node(ast, ERROR_KIND_PARSE_ERROR);
-            } else if(right->kind == NODE_KIND_ERROR) {
-                report_error_new(ast, tok_stream, tok, "Expected expression after '%s'", cstr);
-                return binop_node_error(ast, kind, left, right);
             } else {
                 return binop_node(ast, kind, left, right);
             }
@@ -557,8 +555,10 @@ ast_node *parse_infix_and_postfix(ast *ast, token_stream *tok_stream, i32 prec, 
         case TOKEN_KIND_ERROR:
             return error_node(ast, ERROR_KIND_LEX_ERROR);
             break;
+        default:
+            return error_node(ast, ERROR_KIND_PARSE_ERROR);
+            break;
     }
-    return error_node(ast, ERROR_KIND_PARSE_ERROR);
 }
 
 ast_node *parse_block(ast *ast, token_stream *tok_stream) {
