@@ -53,15 +53,14 @@ u8 peek_char(const tokenizer *tokenizer) {
 }
 
 void eat_all_whitespaces(tokenizer *tokenizer) {
-    tokenizer->start_of_current_line = tokenizer->at;
     while(1) {
         u8 ch = peek_char(tokenizer);
         if(!is_whitespace(ch)) {
             break;
         }
         eat_char(tokenizer);
-        tokenizer->start_of_current_line++;
         if(ch == '\n') {
+            tokenizer->start_of_current_line += tokenizer->current_column_number;
             tokenizer->current_column_number = 0;
             tokenizer->current_line_number++;
         }
