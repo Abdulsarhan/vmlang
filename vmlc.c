@@ -45,6 +45,7 @@ int main(int argc, char **argv) {
     tokenizer.current_line_number = 1;
     tokenizer.current_column_number = 0;
     tokenizer.file_path = (u8*)argv[1];
+    tokenizer.start_of_current_line = tokenizer.at;
 
     token_stream stream = tokenize(&tokenizer);
     assert(stream.at);

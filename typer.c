@@ -51,13 +51,13 @@ void typecheck_statement(typer *tp, ast_node *statement) {
 }
 
 void typecheck_block(typer *tp, ast_node *block) {
-    for(int i = 0; i < da_len(block->block.statements); i++) {
+    for(i32 i = 0; i < da_len(block->block.statements); i++) {
         typecheck_statement(tp, block->block.statements[i]);
     }
 }
 
 void typecheck_func_decl_params(typer *tp, ast_node **params) {
-    for(int i = 0; i < da_len(params); i++) {
+    for(i32 i = 0; i < da_len(params); i++) {
         typecheck_statement(tp, params[i]);
     }
 }
@@ -81,7 +81,7 @@ void typecheck_declaration(typer *tp, ast_node *decl) {
 }
 
 void typecheck_file(typer *tp, ast_node *root) {
-    for(int i = 0; i < da_len(root->file.declarations); i++) {
+    for(i32 i = 0; i < da_len(root->file.declarations); i++) {
         ast_node *declaration = root->file.declarations[i];
         typecheck_declaration(tp, declaration);
     }

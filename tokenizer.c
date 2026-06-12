@@ -53,15 +53,17 @@ u8 peek_char(const tokenizer *tokenizer) {
 }
 
 void eat_all_whitespaces(tokenizer *tokenizer) {
+    tokenizer->start_of_current_line = tokenizer->at;
     while(1) {
         u8 ch = peek_char(tokenizer);
         if(!is_whitespace(ch)) {
             break;
         }
         eat_char(tokenizer);
+        tokenizer->start_of_current_line++;
         if(ch == '\n') {
-            tokenizer->current_line_number++;
             tokenizer->current_column_number = 0;
+            tokenizer->current_line_number++;
         }
     }
 }
@@ -179,6 +181,7 @@ void set_line_and_column_number_on_token(tokenizer *tokenizer, token *tok, u64 t
     tok->c1 = tok->c0 + token_len;
     tok->l0 = tokenizer->current_line_number;
     tok->l1 = tokenizer->current_line_number;
+    tok->start_of_line = tokenizer->start_of_current_line;
 }
 
 void make_token(tokenizer *tokenizer, token_kind kind) {
@@ -581,7 +584,6 @@ token_stream tokenize(tokenizer *tokenizer) {
 
     token_stream stream = {0};
     stream.at = tokenizer->tokens;
-    stream.checkpoint = stream.at;
     stream.file = tokenizer->file_path;
     return stream;
 }

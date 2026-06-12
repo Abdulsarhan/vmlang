@@ -226,7 +226,7 @@ struct ast_node {
     i32 l1, c1;
     // represents the start of the line, and the length
     // of the line that the ast node came from.
-    string8 line_in_file;
+    u8 *start_of_line;
 
     union {
         ast_node_file file;

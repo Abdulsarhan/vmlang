@@ -64,6 +64,7 @@ struct token {
 
     i32 l0, c0;
     i32 l1, c1;
+    u8 *start_of_line;
 
     union {
         b64 bool_value;
@@ -81,15 +82,16 @@ struct tokenizer {
     u8 *end;
     token *tokens;
     size_t token_count;
+
     u64 current_line_number;
     u64 current_column_number;
+    u8 *start_of_current_line;
     u8 *file_path;
 };
 
 typedef struct token_stream token_stream;
 struct token_stream {
     token *at;
-    token *checkpoint;
     u8 *file;
 };
 
