@@ -404,12 +404,16 @@ ast_node *parse_prefix(ast *ast, token_stream *tok_stream) {
         case '(': // for parenthesized expressions.
             ast_node *expr = parse_expression(ast, tok_stream, -9999);
             b32 matched = match_and_eat_token(tok_stream, ')');
-            if(!matched) {
+
+            if(expr->kind == NODE_KIND_ERROR && expr->error.kind == ERROR_KIND_LEX_ERROR) {
+                return expr;
+            } else if(!matched) {
                 ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
                 report_parse_error(ast, err_node, "Expected closing parenthesis to terminate parenthesized expression.");
                 return err_node;
+            } else {
+                return expr;
             }
-            return expr;
             break;
         case '+':
         case '-':
@@ -696,11 +700,11 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
             ast_node *expr = parse_expression(ast, tok_stream, -9999);
             b32 matched = match_and_eat_token(tok_stream, ';');
             if(expr->kind == NODE_KIND_ERROR) {
-                return error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
+                return expr;
             } else if(!matched) {
-                ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
-                report_parse_error(ast, err_node, "expected ';' after expression");
-                return err_node;
+                expr = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
+                report_parse_error(ast, expr, "expected ';' after expression");
+                return expr;
             } else {
                 return expr;
             }
