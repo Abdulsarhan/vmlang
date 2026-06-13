@@ -3,6 +3,20 @@
 void typecheck_expression(typer *tp, ast_node *expr) {
 }
 
+void typer_report_error(typer *tp, ast_node *node, const char *fmt, ...) {
+    printf("%s:%d:%d ", tp->file_name, node->l0, node->c0);
+    printf("Error: ");
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+    printf("\n");
+
+    print_line(node->start_of_line);
+    tp->error_count++;
+    printf("\n");
+}
+
 void typecheck_statement(typer *tp, ast_node *statement) {
     switch(statement->kind) {
         case NODE_KIND_FOR:
@@ -26,14 +40,12 @@ void typecheck_statement(typer *tp, ast_node *statement) {
             break;
         case NODE_KIND_BREAK:
             if(tp->loop_depth == 0) {
-                printf("error: you can't have a break statement outside of a for loop or a while loop.\n");
-                tp->error_count++;
+                typer_report_error(tp, statement, "break statement is not inside of a for loop or a while loop");
             }
             break;
         case NODE_KIND_CONTINUE:
             if(tp->loop_depth == 0) {
-                printf("error: you can't have a continue statement outside of a for loop or a while loop.\n");
-                tp->error_count++;
+                typer_report_error(tp, statement, "continue statement is not inside of a for loop or a while loop");
             }
             break;
         case NODE_KIND_RETURN:

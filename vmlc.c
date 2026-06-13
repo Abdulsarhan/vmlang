@@ -8,21 +8,16 @@
 #undef DS_IMPLEMENTATION
 #undef PAL_IMPLEMENTATION
 
-#define report_error(...) printf("Error: %s\n", __VA_ARGS__);
-
 #include "tokenizer.h"
-#include "tokenizer.c"
-
 #include "parser.h"
-#include "parser.c"
-
 #include "typer.h"
-#include "typer.c"
-
 #include "pretty_printing.h"
-#include "pretty_printing.c"
-
 #include "codegen.h"
+
+#include "tokenizer.c"
+#include "parser.c"
+#include "typer.c"
+#include "pretty_printing.c"
 #include "codegen.c"
 
 int main(int argc, char **argv) {
@@ -46,6 +41,7 @@ int main(int argc, char **argv) {
     tokenizer.current_column_number = 0;
     tokenizer.file_path = (u8*)argv[1];
     tokenizer.start_of_current_line = tokenizer.at;
+    tokenizer.error_count = 0;
 
     token_stream stream = tokenize(&tokenizer);
     assert(stream.at);
@@ -54,6 +50,7 @@ int main(int argc, char **argv) {
     ast.nodes = ARENA_PUSH_ARRAY(arena, ast_node, 16384);
     ast.node_count = 0;
     ast.error_count = 0;
+    ast.file_name = stream.file_name;
 
     ast_node *root = parse_file(&ast, &stream);
 
@@ -61,6 +58,7 @@ int main(int argc, char **argv) {
     tp.loop_depth = 0;
     tp.switch_depth = 0;
     tp.error_count = 0;
+    tp.file_name = ast.file_name;
     typecheck_file(&tp, root);
 
     if(ast.error_count || tp.error_count) {

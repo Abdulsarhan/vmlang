@@ -60,15 +60,17 @@ ast_node *binop_node(ast *ast, binop_kind kind, ast_node *left, ast_node *right)
     return node;
 }
 
-ast_node *break_node(ast *ast) {
+ast_node *break_node(ast *ast, token tok) {
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_BREAK;
+    copy_source_location_from_token_to_ast_node(tok, node);
     return node;
 }
 
-ast_node *continue_node(ast *ast) {
+ast_node *continue_node(ast *ast, token tok) {
     ast_node *node = &ast->nodes[ast->node_count++];
     node->kind = NODE_KIND_CONTINUE;
+    copy_source_location_from_token_to_ast_node(tok, node);
     return node;
 }
 
@@ -180,12 +182,8 @@ void print_line(const u8 *start_of_line) {
     printf("\n");
 }
 
-void print_filename_line_and_column(const token_stream *tok_stream, const ast_node *node) {
-    printf("%s:%d:%d ", tok_stream->file, node->l0, node->c0);
-}
-
-void report_error_new(ast *ast, const token_stream *tok_stream, const ast_node *node, const char *fmt, ...) {
-    print_filename_line_and_column(tok_stream, node);
+void report_parse_error(ast *ast, const ast_node *node, const char *fmt, ...) {
+    printf("%s:%d:%d ", ast->file_name, node->l0, node->c0);
     printf("Error: ");
     va_list args;
     va_start(args, fmt);
@@ -408,7 +406,7 @@ ast_node *parse_prefix(ast *ast, token_stream *tok_stream) {
             b32 matched = match_and_eat_token(tok_stream, ')');
             if(!matched) {
                 ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
-                report_error_new(ast, tok_stream, err_node, "Expected closing parenthesis to terminate parenthesized expression.");
+                report_parse_error(ast, err_node, "Expected closing parenthesis to terminate parenthesized expression.");
                 return err_node;
             }
             return expr;
@@ -527,10 +525,11 @@ ast_node *parse_infix_and_postfix(ast *ast, token_stream *tok_stream, i32 prec, 
             string8 str = token_to_string(arena, tok);
             const char *cstr = str_to_cstr(arena, str);
 
-            if(right->kind == NODE_KIND_ERROR) {
-                ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
-                report_error_new(ast, tok_stream, err_node, "expected expression after '%s'", cstr);
-                return err_node;
+            if(right->kind == NODE_KIND_ERROR && right->error.kind == ERROR_KIND_LEX_ERROR) {
+                return right;
+            } else if(right->kind == NODE_KIND_ERROR && right->error.kind == ERROR_KIND_PARSE_ERROR) {
+                report_parse_error(ast, right, "expected expression after '%s'", cstr);
+                return right;
             } else {
                 return binop_node(ast, kind, left, right);
             }
@@ -582,7 +581,7 @@ ast_node *parse_else_or_else_if(ast *ast, token_stream *tok_stream) {
             node = parse_block(ast, tok_stream);
         } else {
             ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
-            report_error_new(ast, tok_stream, err_node, "expected '{' after else if statement");
+            report_parse_error(ast, err_node, "expected '{' after else if statement");
             return err_node;
         }
     } else {
@@ -600,7 +599,7 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
                 return parse_if(ast, tok_stream);
             } else {
                 ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
-                report_error_new(ast, tok_stream, err_node, "expected '{' after if statement");
+                report_parse_error(ast, err_node, "expected '{' after if statement");
                 return err_node;
             }
             break;
@@ -624,10 +623,10 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
             b32 matched = match_and_eat_token(tok_stream, ';');
             if(!matched) {
                 ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
-                report_error_new(ast, tok_stream, err_node, "expected ';' after continue statement");
+                report_parse_error(ast, err_node, "expected ';' after continue statement");
                 return err_node;
             }
-            return continue_node(ast);
+            return continue_node(ast, tok);
             break;
         }
         case TOKEN_KIND_BREAK: {
@@ -635,10 +634,10 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
             b32 matched = match_and_eat_token(tok_stream, ';');
             if(!matched) {
                 ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
-                report_error_new(ast, tok_stream, err_node, "expected ';' after break statement");
+                report_parse_error(ast, err_node, "expected ';' after break statement");
                 return err_node;
             }
-            return break_node(ast);
+            return break_node(ast, tok);
             break;
         }
         case TOKEN_KIND_RETURN: {
@@ -647,7 +646,7 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
             b32 matched = match_and_eat_token(tok_stream, ';');
             if(!matched) {
                 ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
-                report_error_new(ast, tok_stream, err_node, "expected ';' after return statement");
+                report_parse_error(ast, err_node, "expected ';' after return statement");
                 return err_node;
             }
             return return_node(ast, expression);
@@ -676,7 +675,7 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
                 binop_kind assign_op = assignment_binop_from_token(tok);
                 if (assign_op == BINOP_NONE) {
                     ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
-                    report_error_new(ast, tok_stream, err_node, "expected an assignment operator after the variables in the multi-assignment expression.");
+                    report_parse_error(ast, err_node, "expected an assignment operator after the variables in the multi-assignment expression.");
                     return err_node;
                 }
                 match_and_eat_token(tok_stream, tok.kind);
@@ -685,7 +684,7 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
                 b32 matched = match_and_eat_token(tok_stream, ';');
                 if (!matched) {
                     ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
-                    report_error_new(ast, tok_stream, err_node, "expected ';' after multi-assignment");
+                    report_parse_error(ast, err_node, "expected ';' after multi-assignment");
                     return err_node;
                 }
                 return multi_assign_node(ast, assign_op, lhs_list, rhs);
@@ -697,7 +696,7 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
                 return error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
             } else if(!matched) {
                 ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
-                report_error_new(ast, tok_stream, err_node, "expected ';' after expression");
+                report_parse_error(ast, err_node, "expected ';' after expression");
                 return err_node;
             } else {
                 return expr;
@@ -715,7 +714,7 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream) {
                 }
             }
             ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
-            report_error_new(ast, tok_stream, err_node, "statement cannot start with a literal.");
+            report_parse_error(ast, err_node, "statement cannot start with a literal.");
             return err_node;
             break;
     }
@@ -738,7 +737,7 @@ ast_node *parse_declaration(ast *ast, token_stream *tok_stream) {
     token ident_tok = {0};
     if(!(peek_token(tok_stream).kind == TOKEN_KIND_IDENTIFIER)) {
         ast_node *err_node = error_node(ast, ident_tok, ERROR_KIND_PARSE_ERROR);
-        report_error_new(ast, tok_stream, err_node, "Expected a name belonging to a function, union, enum, or struct declaration.");
+        report_parse_error(ast, err_node, "Expected a name belonging to a function, union, enum, or struct declaration.");
         return err_node;
     } else {
         ident_tok = eat_token(tok_stream);
@@ -766,7 +765,7 @@ ast_node *parse_declaration(ast *ast, token_stream *tok_stream) {
             }
         }
         ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
-        report_error_new(ast, tok_stream, err_node, "Error: Expected function parameters or 'union' or 'enum' or 'struct' after \"::\".");
+        report_parse_error(ast, err_node, "Error: Expected function parameters or 'union' or 'enum' or 'struct' after \"::\".");
         return err_node;
     }
     return NULL;

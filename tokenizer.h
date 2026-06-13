@@ -87,16 +87,18 @@ struct tokenizer {
     u64 current_column_number;
     u8 *start_of_current_line;
     u8 *file_path;
+    u32 error_count;
 };
 
 typedef struct token_stream token_stream;
 struct token_stream {
     token *at;
-    u8 *file;
+    u8 *file_name;
 };
 
 token_stream tokenize(tokenizer *tokenizer);
 string8 token_to_string(mem_arena *arena, token tok);
 string8 token_kind_to_string(token_kind kind);
+void tok_report_error(tokenizer *tokenizer, const char *fmt, ...);
 
 #endif /* TOKENIZER_H */

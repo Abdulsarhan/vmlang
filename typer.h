@@ -8,6 +8,7 @@ struct typer {
     i32 loop_depth;
     i32 switch_depth;
     i32 error_count;
+    u8 *file_name;
 };
 
 void typecheck_file(typer *tp, ast_node *root);

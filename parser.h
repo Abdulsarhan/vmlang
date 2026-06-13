@@ -249,7 +249,6 @@ struct ast_node {
         ast_node_str_lit str_lit;
         ast_node_char_lit char_lit;
         ast_node_ident ident;
-
         ast_node_error error;
     };
 };
@@ -259,6 +258,7 @@ struct ast {
     ast_node *nodes;
     u64 node_count;
     u64 error_count;
+    u8 *file_name;
 };
 
 ast_node *parse_file(ast *ast, token_stream *tok_stream);
@@ -268,4 +268,7 @@ ast_node *parse_statement(ast *ast, token_stream *tok_stream);
 ast_node *parse_else_or_else_if(ast *ast, token_stream *tok_stream);
 ast_node *parse_if(ast *ast, token_stream *tok_stream);
 
+void report_parse_error(ast *ast, const ast_node *node, const char *fmt, ...);
+
+void print_line(const u8 *start_of_line);
 #endif /* PARSER_H */

@@ -83,9 +83,9 @@ u8 peek_next_char(const tokenizer *tokenizer) {
     return 0;
 }
 
-u8 parse_escape_char(u8 *escape_start) {
+u8 parse_escape_char(tokenizer *tokenizer, u8 *escape_start) {
     if(escape_start[0] != '\\') {
-        report_error("Error: Expected backslash in multi-character char literal\n");
+        tok_report_error(tokenizer, "Error: Expected backslash in multi-character char literal\n");
         return 1;
     }
     switch(escape_start[1]) {
@@ -100,7 +100,7 @@ u8 parse_escape_char(u8 *escape_start) {
         case '\\': return '\\';
         case '0':  return '\0';
         default:
-            report_error("Error: Invalid escape character in char literal.\n");
+            tok_report_error(tokenizer, "Error: Invalid escape character in char literal.\n");
             return 1;
             break;
     }
@@ -179,8 +179,22 @@ void set_line_and_column_number_on_token(tokenizer *tokenizer, token *tok, u64 t
     tok->c0 = tokenizer->current_column_number;
     tok->c1 = tok->c0 + token_len;
     tok->l0 = tokenizer->current_line_number;
-    tok->l1 = tokenizer->current_line_number;
+    tok->l1 = tokenizer->current_line_number; // this will be used when we get tokens that span multiple lines.
     tok->start_of_line = tokenizer->start_of_current_line;
+}
+
+void tok_report_error(tokenizer *tokenizer, const char *fmt, ...) {
+    printf("%s:%llu:%llu ", tokenizer->file_path, tokenizer->current_line_number, tokenizer->current_column_number);
+    printf("Error: ");
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+    printf("\n");
+
+    print_line(tokenizer->start_of_current_line);
+    tokenizer->error_count++;
+    printf("\n");
 }
 
 void make_token(tokenizer *tokenizer, token_kind kind) {
@@ -200,7 +214,7 @@ void make_char_token(tokenizer *tokenizer, u8 *char_start, i8 token_len, b32 err
     } else if(token_len == 1) {
         tok->char_value = char_start[0];
     } else if(token_len == 2) {
-        tok->char_value = parse_escape_char(char_start);
+        tok->char_value = parse_escape_char(tokenizer, char_start);
         if(tok->char_value == 1) {
             tok->kind = TOKEN_KIND_ERROR;
         }
@@ -283,8 +297,7 @@ token_stream tokenize(tokenizer *tokenizer) {
                         if(match(tokenizer, '\'')) {
                             literal_length = 2;
                         } else {
-                            report_error("Error: missing closing quote to terminate char literal\n");
-                            printf("%.*s\n", (int)tokenizer->current_column_number, tokenizer->at - tokenizer->current_column_number);
+                            tok_report_error(tokenizer, "Error: missing closing quote to terminate char literal");
                             error = 1;
                         }
                     }
@@ -293,15 +306,13 @@ token_stream tokenize(tokenizer *tokenizer) {
                     if(match(tokenizer, '\'')) {
                         literal_length = 1;
                     } else {
-                        report_error("Error: missing closing quote to terminate char literal\n");
-                        printf("%.*s\n", (int)tokenizer->current_column_number, tokenizer->at - tokenizer->current_column_number);
+                        tok_report_error(tokenizer, "Error: missing closing quote to terminate char literal");
                         error = 1;
                     }
                 } else if(match(tokenizer, '\'')) {
                     literal_length = 0;
                 } else {
-                    report_error("Error: missing closing quote to terminate char literal\n");
-                    printf("%.*s\n", (int)tokenizer->current_column_number, tokenizer->at - tokenizer->current_column_number);
+                    tok_report_error(tokenizer, "Error: missing closing quote to terminate char literal");
                     error = 1;
                 }
                 make_char_token(tokenizer, char_start, literal_length, error);
@@ -317,7 +328,7 @@ token_stream tokenize(tokenizer *tokenizer) {
                     eat_char(tokenizer);
                 }
                 if(tokenizer->at >= tokenizer->end) {
-                    report_error("Error: unterminated string literal\n");
+                    tok_report_error(tokenizer, "Error: unterminated string literal\n");
                     error = 1;
                 }
 
@@ -574,7 +585,7 @@ token_stream tokenize(tokenizer *tokenizer) {
                             break;
                     }
                 } else {
-                    report_error("Error: Unexpected character:\n");
+                    tok_report_error(tokenizer, "Error: Unexpected character:\n");
                 }
                 break;
             }
@@ -583,6 +594,6 @@ token_stream tokenize(tokenizer *tokenizer) {
 
     token_stream stream = {0};
     stream.at = tokenizer->tokens;
-    stream.file = tokenizer->file_path;
+    stream.file_name = tokenizer->file_path;
     return stream;
 }
