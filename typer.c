@@ -1,6 +1,29 @@
 #include "typer.h"
 
+/*
+Pass 1 — collection: walk the top-level declarations and register all names and
+their types into the symbol table, but don't recurse into bodies yet. This is
+sometimes called a "forward declaration pass" or "hoisting pass."
+Pass 2 — checking: now walk everything again and check bodies, knowing all names
+are already in scope.
+*/
+
 void typecheck_expression(typer *tp, ast_node *expr) {
+    if(expr->kind == NODE_KIND_ERROR) {
+        return NULL;
+    }
+
+    switch(expr->kind) {
+        case NODE_KIND_IDENT:
+            break;
+        case NODE_KIND_BINOP:
+            if(expr->binop.left->kind == NODE_KIND_INT_LIT) {
+                if(expr->binop.right->kind == NODE_KIND_INT_LIT) {
+                    expr->binop.type == TYPE_INT_LIT;
+                }
+            }
+            break;
+    }
 }
 
 void typer_report_error(typer *tp, ast_node *node, const char *fmt, ...) {
@@ -57,6 +80,13 @@ void typecheck_statement(typer *tp, ast_node *statement) {
         case NODE_KIND_IDENT:
             typecheck_expression(tp, statement);
             break;
+        case NODE_KIND_INT_LIT:
+        case NODE_KIND_FLOAT_LIT:
+        case NODE_KIND_CHAR_LIT:
+        case NODE_KIND_BOOL_LIT:
+        case NODE_KIND_STRING_LIT:
+            typer_report_error(tp, statement, "expression cannot start with a literal!\n");
+            break;
         case NODE_KIND_ERROR:
             break;
     }
@@ -92,7 +122,11 @@ void typecheck_declaration(typer *tp, ast_node *decl) {
     }
 }
 
+void typechecker_prepass(typer *tp, ast_node *root) {
+
+}
 void typecheck_file(typer *tp, ast_node *root) {
+    typechecker_prepass(tp, root);
     for(i32 i = 0; i < da_len(root->file.declarations); i++) {
         ast_node *declaration = root->file.declarations[i];
         typecheck_declaration(tp, declaration);

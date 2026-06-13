@@ -9,6 +9,21 @@ struct typer {
     i32 switch_depth;
     i32 error_count;
     u8 *file_name;
+    string8 *symbols; // dynamic array.
+};
+
+typedef enum type_kind {
+    TYPE_KIND_INT_LIT,
+    TYPE_KIND_FLOAT_LIT,
+    TYPE_KIND_CHAR_LIT,
+    TYPE_KIND_BOOL_LIT,
+    TYPE_KIND_STR_LIT,
+}type_kind;
+
+typedef struct type type;
+struct type {
+    type_kind kind;
+
 };
 
 void typecheck_file(typer *tp, ast_node *root);
