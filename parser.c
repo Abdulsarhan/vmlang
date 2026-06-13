@@ -426,8 +426,11 @@ ast_node *parse_prefix(ast *ast, token_stream *tok_stream) {
             break;
         case TOKEN_KIND_ERROR:
             return error_node(ast, tok, ERROR_KIND_LEX_ERROR);
+            break;
+        default:
+            return error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
+            break;
     }
-    return error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
 }
 
 ast_node *parse_expression(ast *ast, token_stream *tok_stream, int min_prec) {
