@@ -8,9 +8,6 @@ thing :: struct {
     a: i32;
 }
 
-thing :: struct {
-    a: i32;
-}
 main :: () -> i32 {
 
     a := 6;

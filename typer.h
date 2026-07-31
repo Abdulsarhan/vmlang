@@ -57,6 +57,7 @@ void typecheck_declaration_body(typer *tp, ast_node *decl);
 void typecheck_func_decl_params(typer *tp, ast_node **params);
 void typecheck_block(typer *tp, ast_node *block);
 void typecheck_statement(typer *tp, ast_node *statement);
+void typecheck_expression(typer *tp, ast_node *expr);
 
 // error reporting
 void typer_report_error(typer *tp, ast_node *node, const char *fmt, ...);

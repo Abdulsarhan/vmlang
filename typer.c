@@ -55,13 +55,16 @@ b32 is_literal(ast_node *node) {
 
 type_kind typecheck_operand(typer *tp, ast_node *operand) {
     switch(operand->kind) {
-        case NODE_KIND_INT_LIT:   return type_kind_i32;
-        case NODE_KIND_FLOAT_LIT: return type_kind_f32;
+        case NODE_KIND_INT_LIT:    return type_kind_i32;
+        case NODE_KIND_FLOAT_LIT:  return type_kind_f32;
+        case NODE_KIND_BOOL_LIT:   return type_kind_bool;
+        case NODE_KIND_CHAR_LIT:   return type_kind_char;
+        case NODE_KIND_STRING_LIT: return type_kind_string;
         case NODE_KIND_IDENT: {
-            symbol *sym = scope_lookup(tp, operand->ident.name);
+            string8 ident = operand->ident.name;
+            symbol *sym = scope_lookup(tp, ident);
             if(!sym) {
-                typer_report_error(tp, operand, "Error: use of undeclared identifier %.*s",
-                                    (int)operand->ident.name.length, operand->ident.name.data);
+                typer_report_error(tp, operand, "Error: use of undeclared identifier %.*s", (int)ident.length, ident.data);
                 return type_kind_none;
             }
             return sym->tp.kind;
@@ -96,14 +99,21 @@ void typecheck_expression(typer *tp, ast_node *expr) {
                             ident.name = left->ident.name;
                             scope_add_symbol(tp, ident);
                         } else {
-                            typer_report_error(tp, expr, "Error: Expected a type after %.*s and ':'",
-                                                (int)left->ident.name.length, left->ident.name.data);
+                            string8 ident = left->ident.name;
+                            typer_report_error(tp, expr, "Error: Expected a type after %.*s and ':'", (int)ident.length, ident.data);
                         }
                     }
                 } break;
                 case BINOP_COLON_EQUAL: {
                     if(left->kind == NODE_KIND_IDENT) {
-                        binop->binexpr_type = typecheck_operand(tp, right);
+                        type_kind inferred = typecheck_operand(tp, right);
+                        binop->binexpr_type = inferred;
+ 
+                        symbol ident = {0};
+                        ident.tp.kind = inferred;
+                        ident.node = expr;
+                        ident.name = left->ident.name;
+                        scope_add_symbol(tp, ident);
                     } else {
                         typer_report_error(tp, expr, "Error: Expected a variable before ':='");
                     }
@@ -113,6 +123,36 @@ void typecheck_expression(typer *tp, ast_node *expr) {
                     type_kind rt = typecheck_operand(tp, right);
                     binop->binexpr_type = (lt == type_kind_f32 || rt == type_kind_f32) ? type_kind_f32 : type_kind_i32;
                 } break;
+            }
+        } break;
+        case NODE_KIND_FUNCTION_CALL: {
+            ast_node_function_call *call = &expr->function_call;
+            string8 callee_name = expr->function_call.callee->ident.name;
+            if(call->callee->kind != NODE_KIND_IDENT) {
+                typer_report_error(tp, expr, "Error: callee is not an identifier");
+                break;
+            }
+            symbol *callee_sym = scope_lookup(tp, callee_name);
+            if(!callee_sym) {
+                typer_report_error(tp, expr, "Error: call to undeclared function %.*s", (int)callee_name.length, callee_name.data);
+                break;
+            }
+            if(callee_sym->tp.kind != type_kind_function) {
+                typer_report_error(tp, expr, "Error: %.*s is not callable", (int)callee_name.length, callee_name.data);
+                break;
+            }
+            int argc = da_len(call->params);
+            int paramc = da_len(callee_sym->tp.param_types);
+            if(argc != paramc) {
+                typer_report_error(tp, expr, "Error: %.*s expects %d argument(s), got %d",
+                                    (int)callee_name.length, callee_name.data, paramc, argc);
+                break;
+            }
+            for(int i = 0; i < argc; i++) {
+                type_kind arg_type = typecheck_operand(tp, call->params[i]);
+                if(arg_type != callee_sym->tp.param_types[i]) {
+                    typer_report_error(tp, call->params[i], "Error: argument %d type mismatch", i + 1);
+                }
             }
         } break;
         case NODE_KIND_ERROR:
@@ -171,6 +211,9 @@ void typecheck_statement(typer *tp, ast_node *statement) {
             break;
         case NODE_KIND_RETURN:
             typecheck_expression(tp, statement->return_stmt.expression);
+            break;
+         case NODE_KIND_BINOP:
+            typecheck_expression(tp, statement);
             break;
         case NODE_KIND_BLOCK:
             typecheck_block(tp, statement);
@@ -269,16 +312,18 @@ void typecheck_declaration_body(typer *tp, ast_node *decl) {
 b32 is_already_declared(typer *tp, ast_node *node, string8 name) {
     symbol *str = scope_lookup(tp, name);
     if(str) {
-        return true;
         switch(node->kind) {
             case NODE_KIND_STRUCT:
                 typer_report_error(tp, node, "Error: redeclaration of struct by the name of %.*s", (int)name.length, name.data);
+                return true;
                 break;
             case NODE_KIND_UNION:
                 typer_report_error(tp, node, "Error: redeclaration of union by the name of %.*s", (int)name.length, name.data);
+                return true;
                 break;
             case NODE_KIND_ENUM:
                 typer_report_error(tp, node, "Error: redeclaration of enum by the name of %.*s", (int)name.length, name.data);
+                return true;
                 break;
         }
     }
@@ -350,6 +395,7 @@ void typecheck_declaration_header(typer *tp, ast_node *decl) {
 
 void make_primitive_type(typer *tp, string8 name) {
     symbol sym;
+    memset(&sym, 0, sizeof(symbol));
     sym.name = name;
     sym.tp.kind = type_kind_type;
     scope_add_symbol(tp, sym);
