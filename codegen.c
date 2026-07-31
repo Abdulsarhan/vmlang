@@ -6,7 +6,8 @@
 
 #define IMAGE_BASE_32 0x000400000
 #define IMAGE_BASE_64 0x140000000
-#define IMAGE_SUBSYSTEM_WINDOWS_GUI 2
+#define IMAGE_SUBSYSTEM_WINDOWS_GUI 2 // windows gui subsystem
+#define IMAGE_SUBSYSTEM_WINDOWS_CUI 3 // windows console subsystem
 #define IMAGE_SUBSYSTEM_NATIVE 1
 
 #define IMAGE_FILE_EXECUTABLE_IMAGE 0x002
@@ -158,7 +159,7 @@ void write_coff_header(exe_writer *writer, pe_object_kind kind, b32 has_debug_in
 
 void write_standard_coff_fields(exe_writer *writer) {
     write_u16(writer, (u16)OPTIONAL_HEADER_PE32_PLUS);
-    // NOTE: these versions numbers are wrong, but windows doesn't seem to care.
+    // NOTE: these version numbers are wrong, but windows doesn't seem to care.
     write_u8(writer, 0); // major linker version
     write_u8(writer, 0); // minor linker version
     u32 size_of_code = 0; assert(0); // TODO: This is wrong, fix.
@@ -304,7 +305,7 @@ void generate_code(ast_node *root) {
     u32 section_align = 4096;
     u32 file_align = 512;
     b32 is_gui = true;
-    write_windows_specific_fields(&writer, section_align, file_align, is_gui ? IMAGE_SUBSYSTEM_WINDOWS_GUI : IMAGE_SUBSYSTEM_NATIVE, has_debug_info);
+    write_windows_specific_fields(&writer, section_align, file_align, is_gui ? IMAGE_SUBSYSTEM_WINDOWS_GUI : IMAGE_SUBSYSTEM_WINDOWS_CUI, has_debug_info);
 
     write_image_section_header(&writer, ".text", kind, file_align);
     write_image_section_header(&writer, ".data", kind, file_align);
