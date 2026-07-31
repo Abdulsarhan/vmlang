@@ -102,6 +102,29 @@ typedef enum unary_kind {
     UNARY_POST_DECREMENT,
 }unary_kind;
 
+typedef enum type_kind {
+    type_kind_none = 0,
+    type_kind_i8,
+    type_kind_i16,
+    type_kind_i32,
+    type_kind_i64,
+    type_kind_u8,
+    type_kind_u16,
+    type_kind_u32,
+    type_kind_u64,
+    type_kind_f32,
+    type_kind_f64,
+    type_kind_char,
+    type_kind_bool,
+    type_kind_string,
+    type_kind_pointer,
+    type_kind_function,
+    type_kind_struct,
+    type_kind_union,
+    type_kind_enum,
+    type_kind_type,
+}type_kind;
+
 typedef struct ast_node ast_node;
 
 typedef struct ast_node_unary ast_node_unary;
@@ -125,6 +148,7 @@ struct ast_node_multi_assign {
 typedef struct ast_node_binop ast_node_binop;
 struct ast_node_binop {
     binop_kind kind;
+    type_kind binexpr_type;
     ast_node *left;
     ast_node *right;
 };

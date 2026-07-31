@@ -584,6 +584,7 @@ struct string_builder {
 };
 
 typedef u64 (*hash_func_t)(string8 data);
+typedef b32 (*cmp_func_t)(const void *a, const void *b, u32 key_size);
 
 typedef struct hm_header hm_header;
 struct hm_header {
@@ -592,6 +593,7 @@ struct hm_header {
     u32          elem_size;   // key_size + value_size
     u32          key_size;
     hash_func_t  hash_func;
+    cmp_func_t  cmp_func;   // <-- add this
 };
 
 #ifdef __cplusplus
@@ -651,8 +653,8 @@ DSAPI void sb_chop_from_right(string_builder *sb, u64 n);
 
 // hm_init(hm, KeyType, ValueType, hash_func)
 //   hm must be typed as a pointer to your value struct/type.
-#define hm_init(hm, key_type, value_type, hash_func) \
-    ((hm) = hm_init_impl(sizeof(key_type), sizeof(value_type), (hash_func)))
+#define hm_init(hm, key_type, value_type, cmp_func, hash_func) \
+    ((hm) = hm_init_impl(sizeof(key_type), sizeof(value_type), (cmp_func), (hash_func)))
 
 // hm_push(hm, key, value)  –– inserts or overwrites
 #define hm_push(hm, key, value)  \
@@ -663,6 +665,9 @@ DSAPI void sb_chop_from_right(string_builder *sb, u64 n);
 
 // hm_delete(hm, key)  –– marks slot as deleted (tombstone)
 #define hm_delete(hm, key) (hm_delete_impl((hm), (void*)&(key)))
+
+// hm_clear(hm)  –– clears the hashtable so that you can reuse it.
+#define hm_clear(hm) hm_clear_impl((hm))
 
 // hm_grow(hm)  –– unconditionally resize to the next power of two
 #define hm_grow(hm) ((hm) = hm_grow_internal(hm))
@@ -683,6 +688,10 @@ internal u64 hm_fnv1_hash(string8 string);
 internal u64 hm_djb2_hash(string8 string);
 internal u64 hm_sdbm_hash(string8 string);
 internal u64 hm_id_hash(string8 string);
+
+internal b32 hm_cmp_memcmp(const void *a, const void *b, u32 key_size);
+internal b32 hm_cmp_strcmp(const void *a, const void *b, u32 key_size);
+internal b32 hm_cmp_string8(const void *a, const void *b, u32 key_size);
 
 #define get_aa_header(t) ((aa_header *)(t) - 1)
 #define aa_create(T, size) (T *)aa_create_impl(size * sizeof(T))
@@ -931,7 +940,7 @@ DSAPI int arena_reset_region(const mem_arena *arena, void *region_start, size_t 
     return -1;
 }
 
-global u8 g_scratch_mem[16384];
+global u8 g_scratch_mem[mebibytes(10)];
 DSAPI mem_arena *arena_get_scratch() {
     mem_arena *arena = (mem_arena*)g_scratch_mem;
     arena->pos = ARENA_BASE_POS;
@@ -940,7 +949,6 @@ DSAPI mem_arena *arena_get_scratch() {
     arena->page_size = 4096;
     return arena;
 }
-
 #else
 
 #include <sys/mman.h>
@@ -1028,9 +1036,14 @@ DSAPI int arena_reset_region(const mem_arena *arena, void *region_start, size_t 
     return -1;
 }
 
-DSAPI mem_arena arena_get_scratch(mem_arena *source) {
-    mem_arena scratch = *source;
-    return scratch;
+global u8 g_scratch_mem[16384];
+DSAPI mem_arena *arena_get_scratch() {
+    mem_arena *arena = (mem_arena*)g_scratch_mem;
+    arena->pos = ARENA_BASE_POS;
+    arena->committed_size = 16384;
+    arena->reserved_size = 16384;
+    arena->page_size = 4096;
+    return arena;
 }
 #endif // _WIN32 || _WIN64
 
@@ -1039,7 +1052,7 @@ DSAPI mem_arena arena_get_scratch(mem_arena *source) {
    =======   STRINGS AND STRING BUILDER IMPLEMENTATION   =====
    =========================================================== */
 
-DSAPI u8 ds_eat_char(u8 **at) {
+DSAPI u8 str_eat_char(u8 **at) {
     if (**at != '\0') {
         u8 c = **at;
         (*at)++;
@@ -1220,7 +1233,7 @@ DSAPI string8 str_from_f64(mem_arena *arena, f64 value) {
 }
 
 DSAPI i32 str_to_i32(string8 str) {
-    i32 k = 0;
+    i32 number = 0;
     u64 i = 0;
     i32 sign = 1;
 
@@ -1230,14 +1243,15 @@ DSAPI i32 str_to_i32(string8 str) {
     }
 
     for (; i < str.length; i++) {
-        k = k * 10 + (str.data[i] - '0');
+        number *= 10 + (str.data[i] - '0');
     }
 
-    return sign * k;
+    return sign * number;
+    printf("something");
 }
 
 DSAPI i64 str_to_i64(string8 str) {
-    i64 k = 0;
+    i64 number = 0;
     u64 i = 0;
     i32 sign = 1;
 
@@ -1247,10 +1261,10 @@ DSAPI i64 str_to_i64(string8 str) {
     }
 
     for (; i < str.length; i++) {
-        k = k * 10 + (str.data[i] - '0');
+        number *= 10 + (str.data[i] - '0');
     }
 
-    return sign * k;
+    return sign * number;
 }
 
 DSAPI f64 str_to_f64(string8 str) {
@@ -1276,7 +1290,9 @@ DSAPI f64 str_to_f64(string8 str) {
         // Convert fractional digits as an integer, then scale down
         i64 frac_int = str_to_i64(fractional_part);
         f64 scale = 1.0;
-        for (u64 i = 0; i < fractional_len; i++) scale *= 10.0;
+        for (u64 i = 0; i < fractional_len; i++) {
+            scale *= 10.0;
+        }
 
         f64 fraction = (f64)frac_int / scale;
 
@@ -1292,6 +1308,7 @@ DSAPI f64 str_to_f64(string8 str) {
 DSAPI const char *str_to_cstr(mem_arena *arena, string8 str) {
     char *c_string = (char *)arena_push(arena, str.length + 1, 1, 1);
     ds_memcpy(c_string, str.data, str.length);
+    c_string[str.length] = '\0';
     return c_string;
 }
 
@@ -1304,9 +1321,9 @@ DSAPI string8 str_format(mem_arena *arena, string8 fmt, ...) {
     va_start(ap, fmt);
 
     while (at < end) {
-        char c = ds_eat_char(&at);
+        char c = str_eat_char(&at);
         if (c == '%') {
-            char spec = ds_eat_char(&at);
+            char spec = str_eat_char(&at);
             switch (spec) {
 
                 case 's': {
@@ -1324,7 +1341,7 @@ DSAPI string8 str_format(mem_arena *arena, string8 fmt, ...) {
                 } break;
 
                 case 'z': {
-                    char next = ds_eat_char(&at);
+                    char next = str_eat_char(&at);
                     if (next == 'u') {
                         size_t zu = va_arg(ap, size_t);
                         char tmp[32];
@@ -1431,12 +1448,12 @@ DSAPI void sb_reset(string_builder *sb) {
 }
 
 internal u64 hm_pos_hash(string8 pos) {
-    f32 pos_x = 0;
-    f32 pos_y = 0;
-    memory_copy(&pos_x, pos.data, 4);
-    memory_copy(&pos_y, pos.data, 4);
+    u32 bits_x = 0;
+    u32 bits_y = 0;
+    memory_copy(&bits_x, pos.data, 4);
+    memory_copy(&bits_y, pos.data + 4, 4);
 
-    u64 hash = ((u64)(u32)pos_x << 32) | (u32)pos_y;
+    u64 hash = ((u64)bits_x << 32) | bits_y;
     hash = (~hash) + (hash << 21);
     hash ^= hash >> 24;
     hash = (hash + (hash << 3)) + (hash << 8);
@@ -1497,10 +1514,30 @@ internal u64 hm_id_hash(string8 string) {
     }
     return hash;
 }
+
+// ---------------------------------------------------------------------------
+// comparison functions.
+// ---------------------------------------------------------------------------
+internal b32 hm_cmp_memcmp(const void *a, const void *b, u32 key_size) {
+    return memcmp(a, b, key_size) == 0;
+}
+
+internal b32 hm_cmp_strcmp(const void *a, const void *b, u32 key_size) {
+    (void)key_size;
+    return strcmp((const char*)a, (const char *)b) == 0;
+}
+
+internal b32 hm_cmp_string8(const void *a, const void *b, u32 key_size) {
+    (void)key_size;
+    string8 *sa = (string8 *)a;
+    string8 *sb = (string8 *)b;
+    return str_are_strings_equal(*sa, *sb);
+}
+
 // ---------------------------------------------------------------------------
 // hm_init_impl
 // ---------------------------------------------------------------------------
-internal void *hm_init_impl(u32 key_size, u32 value_size, hash_func_t hash_func) {
+internal void *hm_init_impl(u32 key_size, u32 value_size, cmp_func_t cmp_func, hash_func_t hash_func) {
     u32 elem_size  = key_size + value_size;
     u64 capacity   = 256;
     u64 alloc_size = sizeof(hm_header)
@@ -1516,6 +1553,7 @@ internal void *hm_init_impl(u32 key_size, u32 value_size, hash_func_t hash_func)
     header->elem_size  = elem_size;
     header->key_size   = key_size;
     header->hash_func  = hash_func;
+    header->cmp_func = cmp_func;
 
     // Return pointer to just past the header; macros subtract 1 to get back.
     return (void*)(header + 1);
@@ -1529,8 +1567,14 @@ internal void *hm_init_impl(u32 key_size, u32 value_size, hash_func_t hash_func)
 //   Sets *out_found = true if an exact key match was located.
 // ---------------------------------------------------------------------------
 internal u64 hm_find_slot_internal(hm_header *header, void *key, b32 *out_found) {
-    string8 key_str      = { (u8*)key, header->key_size };
-    u64 hash             = header->hash_func(key_str);
+    u64 hash;
+    if (header->cmp_func == hm_cmp_string8) {
+        string8 *real_key = (string8*)key;   // key already points at a string8 struct
+        hash = header->hash_func(*real_key); // hash its actual character content
+    } else {
+        string8 key_str = { (u8*)key, header->key_size };
+        hash = header->hash_func(key_str);
+    }
     u64 capacity         = header->capacity;
     u64 mask             = capacity - 1;
     u8  *slot_states     = hm_slot_states_internal(header);
@@ -1555,7 +1599,7 @@ internal u64 hm_find_slot_internal(hm_header *header, void *key, b32 *out_found)
 
         // state == HM_SLOT_OCCUPIED: compare keys
         u8 *entry_key = hm_entry_internal(header, idx);
-        if (memcmp(entry_key, key, header->key_size) == 0) {
+        if (header->cmp_func(entry_key, key, header->key_size)) {
             *out_found = true;
             return idx;
         }
@@ -1587,13 +1631,14 @@ internal void *hm_grow_internal(void *hm_ptr) {
     new_header->count      = 0;
     new_header->elem_size  = elem_size;
     new_header->key_size   = old_header->key_size;
+    new_header->cmp_func   = old_header->cmp_func;
     new_header->hash_func  = old_header->hash_func;
 
     u8 *old_slot_states = hm_slot_states_internal(old_header);
 
     // Re-insert every live entry into the new table.
     for (u64 i = 0; i < old_capacity; i++) {
-        if (old_slot_states[i] != HM_SLOT_OCCUPIED){
+        if (old_slot_states[i] != HM_SLOT_OCCUPIED) {
             continue;
         }
 
@@ -1679,6 +1724,15 @@ internal void hm_delete_impl(void *hm_ptr, void *key) {
     header->count--;
 }
 
+// ---------------------------------------------------------------------------
+// hm_clear_impl -- clear the hashmap so we can reuse it
+// ---------------------------------------------------------------------------
+internal void hm_clear_impl(void *hm_ptr) {
+    hm_header *header = (hm_header*)hm_ptr - 1;
+    header->count = 0;
+    u8 *slot_states = hm_slot_states_internal(header);
+    memset(slot_states, HM_SLOT_EMPTY, header->capacity * sizeof(*slot_states));
+}
 
 /* dynamic arrays */
 internal inline void *aa_create_impl(size_t reserve) {

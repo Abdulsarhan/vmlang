@@ -4,11 +4,18 @@ this is a multi-line comment
 
 // this is a comment
 
+thing :: struct {
+    a: i32;
+}
+
+thing :: struct {
+    a: i32;
+}
 main :: () -> i32 {
 
     a := 6;
-    b := ';
+    b := '';
 
-    continue;
     return a * b + 2 / 3;
+
 }

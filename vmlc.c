@@ -46,22 +46,19 @@ int main(int argc, char **argv) {
     token_stream stream = tokenize(&tokenizer);
     assert(stream.at);
 
-    ast ast = {0};
-    ast.nodes = ARENA_PUSH_ARRAY(arena, ast_node, 16384);
-    ast.node_count = 0;
-    ast.error_count = 0;
-    ast.file_name = stream.file_name;
+    ast tree = {0};
+    memset(&tree, 0, sizeof(ast));
+    tree.nodes = ARENA_PUSH_ARRAY(arena, ast_node, 16384);
+    tree.file_name = stream.file_name;
 
-    ast_node *root = parse_file(&ast, &stream);
+    ast_node *root = parse_file(&tree, &stream);
 
     typer tp;
-    tp.loop_depth = 0;
-    tp.switch_depth = 0;
-    tp.error_count = 0;
-    tp.file_name = ast.file_name;
+    memset(&tp, 0, sizeof(typer));
+    tp.file_name = tree.file_name;
     typecheck_file(&tp, root);
 
-    if(ast.error_count || tp.error_count) {
+    if(tree.error_count || tp.error_count) {
         return -1;
     } else {
         print_ast(root, 0);
