@@ -9,10 +9,5 @@ thing :: struct {
 }
 
 main :: () -> i32 {
-
-    a := 6;
-    b := '';
-
-    return a * b + 2 / 3;
-
+    print("Hello world!");
 }

@@ -13,12 +13,14 @@
 #include "typer.h"
 #include "pretty_printing.h"
 #include "codegen.h"
+#include "x64_backend.h"
 
 #include "tokenizer.c"
 #include "parser.c"
 #include "typer.c"
 #include "pretty_printing.c"
 #include "codegen.c"
+#include "x64_backend.c"
 
 int main(int argc, char **argv) {
     if(argc < 2) {
@@ -64,7 +66,7 @@ int main(int argc, char **argv) {
         print_ast(root, 0);
     }
 
-    //generate_code(root);
+    generate_code(root, STR8_LIT("./test.exe"), tt_x64_pc_windows, output_format_pe);
 
     return 0;
 }
