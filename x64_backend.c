@@ -20,13 +20,19 @@
 #define OPTIONAL_HEADER_PE32 0x10B
 #define OPTIONAL_HEADER_PE32_PLUS 0x20B
 
-
 #define text_flags IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ
 #define data_flags IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE
 #define bss_flags IMAGE_SCN_CNT_UNINITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE
 #define idata_flags IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE
 #define rodata_flags IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ
 #define rdata_flags rodata_flags
+
+#define Bit(x)((x) << 1)
+#define binary_flag_has_text   Bit(0)
+#define binary_flag_has_data   Bit(1)
+#define binary_flag_has_rodata Bit(2)
+#define binary_flag_has_bss    Bit(3)
+#define binary_flag_has_idata  Bit(4)
 
 typedef struct {
     u32 signature;
@@ -111,6 +117,16 @@ struct instruction_form {
 static const instruction_form sub_rm64_imm8 = {
     .opcode = {0x83}, .opcode_len = 1, .opcode_ext = 5,
     .form = enc_mi, .imm_size = 1, .needs_rexw = true,
+};
+
+typedef struct section_info section_info;
+struct section_info {
+    u32 rva;
+    u32 virtual_size;
+
+    u32 offset_on_disk;
+    u32 size_on_disk;
+    u32 size_of_raw_data;
 };
 
 typedef struct exe_writer exe_writer;
@@ -348,13 +364,14 @@ u16 pe_checksum(u32 ulPartialSum, u16 *start_of_pe_file, u32 file_length) {
 }
 
 void write_windows_specific_fields(exe_writer *writer,
+                                   u64 image_base,
                                    u32 section_align,
                                    u32 file_align,
                                    u32 size_of_headers,
                                    u32 size_of_image,
                                    u16 subsystem,
                                    b32 has_debug_info) {
-    write_u64(writer, IMAGE_BASE_64);
+    write_u64(writer, image_base);
     write_u32(writer, section_align);
     write_u32(writer, file_align);
     assert(section_align >= file_align && "section alignment has to be greater than or equal to file alignment");
@@ -489,8 +506,7 @@ void write_hint_name_table_entry(exe_writer *writer, string8 function_name) {
     }
 }
 
-void write_import_lookup_table_entry(exe_writer *writer, pe_format format, u32 hint_name_table_rva) {
-
+void write_ilt_or_iat_entry(exe_writer *writer, pe_format format, u32 hint_name_table_rva) {
     write_bits(writer, (u8*)&hint_name_table_rva, 31);
 
     u32 zeroes = 0;
@@ -502,112 +518,162 @@ void write_import_lookup_table_entry(exe_writer *writer, pe_format format, u32 h
     write_bits(writer, &ordinal_flag, 1);
 }
 
-void write_import_functions(string8 *function_names, u32 function_count, exe_writer *idata_section_writer, pe_format format, u32 idata_section_rva) {
-    u32 offset = idata_section_rva + idata_section_writer->at;
-    // we are calculating the offset of where the function names that we want to import
-    // are stored in the idata section. We do this by taking our current writer's position,
-    // and then adding to it the number of IAT and INT entries (writer->function_count * 2),
-    // multiplied by the size of each entry (8 on pe32+ and 4 on pe32).
+u32 get_ilt_or_iat_entry_size(pe_format format) {
     if(format == pe_format_pe32_plus) {
-        offset += 8 * function_count * 2;
+        return 8;
     } else if(format == pe_format_pe32) {
-        offset += 4 * function_count * 2;
+        return 4;
+    }
+    assert(0); // unreachable code
+}
+
+void write_ilt_and_iat(const import *imports, u32 import_count, exe_writer *idata_section_writer, pe_format format, u32 idata_section_rva) {
+    u32 offset = idata_section_rva + idata_section_writer->at;
+
+    u32 ilt_or_iat_entry_size = get_ilt_or_iat_entry_size(format);
+    for(u32 i = 0; i < import_count; i++) {
+        const import *dll = &imports[i];
+        offset += ilt_or_iat_entry_size * dll->function_count * 2;
     }
 
     u32 starting_offset = offset;
 
-    for(int i = 0; i < function_count; i++) {
-        write_import_lookup_table_entry(idata_section_writer, pe_format_pe32_plus, offset);
-        offset += function_names[i].length;
-    }
-    write_import_lookup_table_entry(idata_section_writer, pe_format_pe32_plus, 0); // null entry
+    for(u32 i = 0; i < import_count; i++) {
+        const import *dll = &imports[i];
+        for(u32 j = 0; j < dll->function_count; j++) {
+            write_ilt_or_iat_entry(idata_section_writer, pe_format_pe32_plus, offset);
+            offset += dll->function_names[j].length;
+        }
+        write_ilt_or_iat_entry(idata_section_writer, pe_format_pe32_plus, 0); // null entry
 
-    offset = starting_offset;
-    for(int i = 0; i < function_count; i++) {
-        write_import_lookup_table_entry(idata_section_writer, pe_format_pe32_plus, offset);
-        offset += function_names[i].length;
-    }
-    write_import_lookup_table_entry(idata_section_writer, pe_format_pe32_plus, 0); // null entry
-
-    for (int i = 0; i < function_count; i++) {
-        write_hint_name_table_entry(idata_section_writer, function_names[i]);
+        offset = starting_offset;
+        for(u32 j = 0; j < dll->function_count; j++) {
+            write_ilt_or_iat_entry(idata_section_writer, pe_format_pe32_plus, offset);
+            offset += dll->function_names[j].length;
+        }
+        write_ilt_or_iat_entry(idata_section_writer, pe_format_pe32_plus, 0); // null entry
     }
 
-    function_count = 0;
 }
 
-typedef struct section_writer section_writer;
-struct section_writer {
+section_info get_next_section_info(u32 section_align,
+                                   u32 file_align,
+                                   u32 size_of_raw_data,
+                                   section_info *prev_info) {
+    section_info info;
+    info.rva = ALIGN_UP_NEXT_POW2(prev_info->rva + prev_info->virtual_size, section_align);
+    info.virtual_size = ALIGN_UP_NEXT_POW2(size_of_raw_data, section_align);
+    info.offset_on_disk = ALIGN_UP_NEXT_POW2(prev_info->offset_on_disk + prev_info->size_on_disk, file_align);
+    info.size_on_disk =  ALIGN_UP_NEXT_POW2(size_of_raw_data, file_align);
+    info.size_of_raw_data = size_of_raw_data;
+    *prev_info = info;
+    return info;
+}
 
-};
+u32 get_next_section_rva(u32 section_align, section_info prev_info) {
+    return ALIGN_UP_NEXT_POW2(prev_info.rva + prev_info.virtual_size, section_align);
+}
+
+void write_section_padding_bytes(const section_info *info, exe_writer *writer) {
+    u32 num_padding_bytes = info->size_on_disk - info->size_of_raw_data;
+
+    memset(&writer->buffer[writer->at], 0, num_padding_bytes);
+    writer->at += num_padding_bytes;
+}
 
 void generate_pe_file(ast_node *root,
                       string8 output_path,
-                      string8 *import_function_names,
-                      u32 import_function_count) {
+                      const u8 *text,
+                      u32 size_of_text,
+                      const u8 *data,
+                      u32 size_of_data,
+                      const u8 *rodata,
+                      u32 size_of_rodata,
+                      u32 size_of_bss,
+                      const import *imports,
+                      u32 import_count) {
     (void)root;
 
+    const u64 image_base = 0x140000000;
     const pe_format format = pe_format_pe32_plus;
     const pe_object_kind kind = pe_object_kind_exe;
     const u32 section_align = 4096;
     const u32 file_align = 512;
-    const u32 num_sections = 4;
     const b32 is_gui = true;
     const b32 has_debug_info = false;
+    u32 num_sections = 0;
+    u64 binary_flags = 0;
+    if(size_of_text)   num_sections++, binary_flags |= binary_flag_has_text;
+    if(size_of_rodata) num_sections++, binary_flags |= binary_flag_has_rodata;
+    if(size_of_data)   num_sections++, binary_flags |= binary_flag_has_data;
+    if(size_of_bss)    num_sections++, binary_flags |= binary_flag_has_bss;
+    if(import_count)   num_sections++, binary_flags |= binary_flag_has_idata;
 
     mem_arena *arena = arena_init(gibibytes(1));
 
-    // text
-    exe_writer text_section_writer = writer_init(arena, mebibytes(10));
-    const u8 code[] = {0x48, 0x83, 0xEC, 0x28,                                  // sub rsp, 0x28
-                       0xB9, 0xF5, 0xFF, 0xFF, 0xFF,                            // mov ecx, -11
-                       0xFF, 0x15, 0x59, 0x30, 0x00, 0x00,                      // call [GetStdHandle]
-                       0x48, 0x89, 0xC1,                                        // mov rcx, rax
-                       0x48, 0x8D, 0x15, 0xE7, 0x0F, 0x00, 0x00,                // lea rdx, [start of rodata]
-                       0x41, 0xB8, 0x0E, 0x00, 0x00, 0x00,                      // mov r8d, 0x0E
-                       0x4C, 0x8D, 0x0D, 0xDA, 0x1F, 0x00, 0x00,                // lea r9, [start of data]
-                       0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00,    // mov qword ptr [rsp + 0x20], 0
-                       0xFF, 0x15, 0x2B, 0x30, 0x00, 0x00,                      // call [WriteConsoleA]
-                       0x31, 0xC9,                                              // xor ecx, ecx
-                       0xFF, 0x15, 0x1B, 0x30, 0x00, 0x00};                     // call [ExitProcess]
-    write_bytes(&text_section_writer, code, array_count(code));
+    section_info prev_section;
+    memset(&prev_section, 0, sizeof(prev_section));
 
-    u64 image_base = 0x140000000;
-    u32 text_rva = 0x1000;
-    u64 start_of_text = image_base + text_rva;
-
-    // rodata (finished)
-    u32 rodata_rva = 0x2000;
-    u64 start_of_rodata = image_base + rodata_rva;
-    exe_writer rodata_section_writer = writer_init(arena, mebibytes(10));
-    const char *rodata_section = "Hello from pe!";
-    write_bytes(&rodata_section_writer, (u8*)rodata_section, sizeof(rodata_section) - 1);
-
-    // data (finished)
-    u32 data_rva = 0x3000;
-    u64 start_of_data = image_base + data_rva;
-    exe_writer data_section_writer = writer_init(arena, mebibytes(10));
-    write_u32(&data_section_writer, 0);
-
-    // idata
-    u32 idata_rva = 0x4000;
-    u64 start_of_idata = image_base + idata_rva;
-    exe_writer idata_section_writer = writer_init(arena, mebibytes(10));
-    write_import_dir_entry(&idata_section_writer, idata_rva + 0x38, 0, 0, idata_rva + 0x28, idata_rva + 0x58);
-    write_import_dir_entry(&idata_section_writer, 0, 0, 0, 0, 0);           // null descriptor
-
-    assert(idata_section_writer.at == 0x28);
-
-    const u8 kernel_32[] = "Kernel32.dll";
-    write_bytes(&idata_section_writer, kernel_32, sizeof(kernel_32));
-    u32 offset = idata_rva + idata_section_writer.at;
-    u32 num_padding_bytes = (8 - (offset & 7)) & 7;
-    for(u32 i = 0; i < num_padding_bytes; i++) {
-        write_u8(&idata_section_writer, 0);
+    section_info text_info, rodata_info, data_info, idata_info;
+    if(binary_flags & binary_flag_has_text) {
+        text_info = get_next_section_info(section_align, file_align, size_of_text, &prev_section);
+    }
+    if(binary_flags & binary_flag_has_rodata) {
+        rodata_info = get_next_section_info(section_align, file_align, size_of_text, &prev_section);
+    }
+    if(binary_flags & binary_flag_has_data) {
+        data_info = get_next_section_info(section_align, file_align, size_of_text, &prev_section);
     }
 
-    write_import_functions(import_function_names, import_function_count, &idata_section_writer, format, idata_rva);
+    // idata
+    exe_writer idata_section_writer = {0};
+    if(binary_flags & binary_flag_has_idata) {
+        const u32 idata_rva = get_next_section_rva(section_align, data_info);
+        idata_section_writer = writer_init(arena, mebibytes(10));
 
+        u32 size_of_directory_table = 0x14; // to account for null entry
+        size_of_directory_table += import_count * 0x14;
+
+        u32 import_lookup_table_offset = size_of_directory_table;
+        for(u32 i = 0; i < import_count; i++) {
+            import_lookup_table_offset += imports[i].dll_name.length;
+        }
+
+        u32 size_of_ilt_or_iat_entry = get_ilt_or_iat_entry_size(format);
+        u32 size_of_first_ilt_entry = imports[0].function_count * size_of_ilt_or_iat_entry;
+        u32 import_address_table_offset = import_lookup_table_offset + size_of_first_ilt_entry;
+
+        for(u32 i = 0; i < import_count; i++) {
+            write_import_dir_entry(&idata_section_writer, idata_rva + import_lookup_table_offset, 0, 0, idata_rva + 0x28, idata_rva + import_address_table_offset);
+            u32 size_of_ilt_or_iat = imports[i].function_count * size_of_ilt_or_iat_entry;
+            import_lookup_table_offset += size_of_ilt_or_iat;
+            import_address_table_offset += size_of_ilt_or_iat;
+        }
+        write_import_dir_entry(&idata_section_writer, 0, 0, 0, 0, 0); // null descriptor
+
+        for(u32 i = 0; i < import_count; i++) {
+            const import *dll = &imports[i];
+            for(u32 j = 0; j < dll->function_count; j++) {
+                write_bytes(&idata_section_writer, dll->function_names[j].data, dll->function_names[j].length);
+            }
+        }
+
+        u32 offset = idata_rva + idata_section_writer.at;
+        u32 num_padding_bytes = (8 - (offset & 7)) & 7;
+
+        for(u32 i = 0; i < num_padding_bytes; i++) {
+            write_u8(&idata_section_writer, 0);
+        }
+
+        write_ilt_and_iat(imports, import_count, &idata_section_writer, format, idata_rva);
+
+        for(u32 i = 0; i < import_count; i++) {
+            const import *dll = &imports[i];
+            for (u32 j = 0; j < dll->function_count; j++) {
+                write_hint_name_table_entry(&idata_section_writer, dll->function_names[j]);
+            }
+        }
+    }
     exe_writer pe_writer = writer_init(arena, mebibytes(10));
 
     write_dos_header(&pe_writer);
@@ -615,16 +681,14 @@ void generate_pe_file(ast_node *root,
 
     write_coff_header(&pe_writer, format, kind, has_debug_info, num_sections);
 
-    u32 size_of_text = text_section_writer.at - (u64)text_section_writer.buffer;
-    // NOTE: for some reason, in the assembly program that we have, this is 0 even though we have read only data. does read only data not count as initialized data?
-    u32 size_of_data = data_section_writer.at - (u64)data_section_writer.buffer;
-    u32 size_of_rodata = rodata_section_writer.at - (u64)rodata_section_writer.buffer;
     u32 size_of_idata = idata_section_writer.at - (u64)idata_section_writer.buffer;
+    idata_info = get_next_section_info(section_align, file_align, size_of_idata, &prev_section);
+
     u32 size_of_init_data = size_of_data + size_of_rodata;
-    u32 size_of_uninit_data = 0;
-    u32 addr_of_entry_rva = text_rva;
-    u32 base_of_code_rva = text_rva;
-    u32 base_of_data_rva = idata_rva;
+    u32 size_of_uninit_data = size_of_bss;
+    u32 addr_of_entry_rva = text_info.rva;
+    u32 base_of_code_rva = text_info.rva;
+    u32 base_of_data_rva = data_info.rva;
     write_standard_coff_fields(&pe_writer, format, size_of_text, size_of_init_data, size_of_uninit_data, addr_of_entry_rva, base_of_code_rva, base_of_data_rva);
 
     u32 size_of_headers;
@@ -635,8 +699,10 @@ void generate_pe_file(ast_node *root,
     }
     size_of_headers += num_sections * 40; // each section header is 40 bytes.
     // size of image after it's been mapped into memory.
-    u32 size_of_image = size_of_headers + 0x4000;
+    u32 virtual_size_of_sections = text_info.virtual_size + rodata_info.virtual_size + data_info.virtual_size + idata_info.virtual_size;
+    u32 size_of_image = size_of_headers + virtual_size_of_sections;
     write_windows_specific_fields(&pe_writer,
+                                  image_base,
                                   section_align,
                                   file_align,
                                   size_of_headers,
@@ -644,10 +710,35 @@ void generate_pe_file(ast_node *root,
                                   is_gui ? IMAGE_SUBSYSTEM_WINDOWS_GUI : IMAGE_SUBSYSTEM_WINDOWS_CUI,
                                   has_debug_info);
 
-    write_image_section_header(&pe_writer, ".text", kind, file_align, 0x1000, 0x1000, size_of_text, 0, text_flags);
-    write_image_section_header(&pe_writer, ".rodata", kind, file_align, 0x1000, 0x2000, size_of_rodata, 0, rodata_flags);
-    write_image_section_header(&pe_writer, ".data", kind, file_align, 0x1000, 0x3000, size_of_data, 0, data_flags);
-    write_image_section_header(&pe_writer, ".idata", kind, file_align, 0x1000, 0x4000, size_of_idata, 0, idata_flags);
+    if(binary_flags & binary_flag_has_text) {
+        write_image_section_header(&pe_writer, ".text", kind, file_align, text_info.virtual_size, text_info.rva, size_of_text, 0, text_flags);
+    }
+    if(binary_flags & binary_flag_has_rodata) {
+        write_image_section_header(&pe_writer, ".rodata", kind, file_align, rodata_info.virtual_size, rodata_info.rva, size_of_rodata, 0, rodata_flags);
+    }
+    if(binary_flags & binary_flag_has_data) {
+        write_image_section_header(&pe_writer, ".data", kind, file_align, data_info.virtual_size, data_info.rva, size_of_data, 0, data_flags);
+    }
+    if(binary_flags & binary_flag_has_idata) {
+        write_image_section_header(&pe_writer, ".idata", kind, file_align, idata_info.virtual_size, idata_info.rva, size_of_idata, 0, idata_flags);
+    }
+
+    if(binary_flags & binary_flag_has_text) {
+        write_bytes(&pe_writer, text, size_of_text);
+        write_section_padding_bytes(&text_info, &pe_writer);
+    }
+    if(binary_flags & binary_flag_has_rodata) {
+        write_bytes(&pe_writer, rodata, size_of_rodata);
+        write_section_padding_bytes(&rodata_info, &pe_writer);
+    }
+    if(binary_flags & binary_flag_has_data) {
+        write_bytes(&pe_writer, data, size_of_data);
+        write_section_padding_bytes(&data_info, &pe_writer);
+    }
+    if(binary_flags & binary_flag_has_idata) {
+        write_bytes(&pe_writer, idata_section_writer.buffer, size_of_idata);
+        write_section_padding_bytes(&idata_info, &pe_writer);
+    }
 
     pal_write_file(pe_writer.buffer, pe_writer.at - (u64)pe_writer.buffer, str_to_cstr(arena, output_path));
 }

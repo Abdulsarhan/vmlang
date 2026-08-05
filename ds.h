@@ -780,7 +780,13 @@ static T *da_arrgrowf_wrapper(T *a, size_t elemsize, size_t addlen, size_t min_c
 #define ds_free(c, p) free(p)
 #endif
 
+// This doesn't do anything if already aligned
+// 'a' must be a power of two for this to work.
 #define ALIGN_UP_POW2(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
+
+// This aligns to the next boundary that is specified in 'a'
+// 'a' must be a power of two for this to work.
+#define ALIGN_UP_NEXT_POW2(x, a) ((((x) & ~((a) - 1)) + (a)))
 
 #define ARENA_BASE_POS sizeof(mem_arena)
 
