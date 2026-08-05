@@ -20,10 +20,10 @@
 #define OPTIONAL_HEADER_PE32 0x10B
 #define OPTIONAL_HEADER_PE32_PLUS 0x20B
 
-#define text_flags IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ
-#define data_flags IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE
-#define bss_flags IMAGE_SCN_CNT_UNINITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE
-#define idata_flags IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE
+#define text_flags   IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ
+#define data_flags   IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE
+#define bss_flags    IMAGE_SCN_CNT_UNINITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE
+#define idata_flags  IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE
 #define rodata_flags IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ
 #define rdata_flags rodata_flags
 
@@ -533,9 +533,10 @@ void write_ilt_and_iat(const import *imports, u32 import_count, exe_writer *idat
     u32 ilt_or_iat_entry_size = get_ilt_or_iat_entry_size(format);
     for(u32 i = 0; i < import_count; i++) {
         const import *dll = &imports[i];
-        offset += ilt_or_iat_entry_size * dll->function_count * 2;
+        offset += ilt_or_iat_entry_size * 2 * dll->function_count;
     }
 
+    offset += ilt_or_iat_entry_size * 2 * import_count;
     u32 starting_offset = offset;
 
     for(u32 i = 0; i < import_count; i++) {
@@ -552,6 +553,7 @@ void write_ilt_and_iat(const import *imports, u32 import_count, exe_writer *idat
             offset += dll->function_names[j].length;
         }
         write_ilt_or_iat_entry(idata_section_writer, pe_format_pe32_plus, 0); // null entry
+        starting_offset = offset;
     }
 
 }
