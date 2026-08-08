@@ -1,5 +1,5 @@
-#ifndef X64_BACKEND_H
-#define X64_BACKEND_H
+#ifndef PE_FILE_H
+#define PE_FILE_H
 
 #include "parser.h"
 
@@ -21,5 +21,4 @@ void generate_pe_file(ast_node *root,
                       u32 size_of_bss,
                       const import *imports,
                       u32 import_count);
-#endif //X64_BACKEND_H
-
+#endif //PE_FILE_H

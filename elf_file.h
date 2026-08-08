@@ -1,0 +1,17 @@
+#ifndef ELF_FILE_H
+#define ELF_FILE_H
+
+#include "ds.h"
+#include "parser.h"
+
+void generate_elf_file(ast_node *root,
+                       string8 output_path,
+                       const u8 *text,
+                       u32 size_of_text,
+                       const u8 *data,
+                       u32 size_of_data,
+                       const u8 *rodata,
+                       u32 size_of_rodata,
+                       u32 size_of_bss);
+
+#endif //ELF_FILE_H

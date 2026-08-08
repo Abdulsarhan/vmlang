@@ -13,14 +13,18 @@
 #include "typer.h"
 #include "pretty_printing.h"
 #include "codegen.h"
-#include "x64_backend.h"
+#include "writer.h"
+#include "pe_file.h"
+#include "elf_file.h"
 
 #include "tokenizer.c"
 #include "parser.c"
 #include "typer.c"
 #include "pretty_printing.c"
 #include "codegen.c"
-#include "x64_backend.c"
+#include "writer.c"
+#include "pe_file.c"
+#include "elf_file.c"
 
 int main(int argc, char **argv) {
     if(argc < 2) {
