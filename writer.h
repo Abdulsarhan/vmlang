@@ -3,6 +3,9 @@
 
 #include "ds.h"
 
+#define TWOCC(x)((uint16_t)(x[1] << 8 | x[0]))
+#define FOURCC(x)((uint32_t)(x[3] << 24 | x[2] << 16 | x[1] << 8 | x[0]))
+
 typedef struct exe_writer exe_writer;
 struct exe_writer {
     u8 *buffer;
@@ -11,6 +14,7 @@ struct exe_writer {
     u8 bit_pos;
 };
 
+exe_writer writer_init(mem_arena *arena, u64 buffer_size);
 void write_bits_aligned(exe_writer *writer, u8 *source, u64 bits_to_write);
 void write_bits(exe_writer *writer, u8 *source, u64 bits_to_write);
 void write_bytes(exe_writer *writer, const u8 *source, u64 size);

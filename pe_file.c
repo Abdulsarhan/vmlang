@@ -5,9 +5,6 @@
 #include "ds.h"
 #include "pal.h"
 
-#define TWOCC(x)((uint16_t)(x[1] << 8 | x[0]))
-#define FOURCC(x)((uint32_t)(x[3] << 24 | x[2] << 16 | x[1] << 8 | x[0]))
-
 #define IMAGE_BASE_32 0x000400000
 #define IMAGE_BASE_64 0x140000000
 #define IMAGE_SUBSYSTEM_WINDOWS_GUI 2 // windows gui subsystem
@@ -490,9 +487,6 @@ void write_windows_specific_fields_64(exe_writer *writer,
     fields.NumberOfRvaAndSizes = 16;
 
     write_bytes(writer, (const u8*)&fields, sizeof(windows_specific_fields_64));
-    // at this point, this is what the offset should be for a 64 bit executable
-    assert(writer->at == 0x80 + 112);
-
     write_data_directory(writer, has_debug_info);
     // at this point, this is what the offset should be for a 64 bit executable
     assert(writer->at == 0x80 + 240);
@@ -529,14 +523,6 @@ void write_image_section_header(exe_writer *writer, const char *section_name, pe
     write_u16(writer, num_relocations);
     write_u16(writer, 0); // Has to be zero
     write_u32(writer, characteristics);
-}
-
-exe_writer writer_init(mem_arena *arena, u64 buffer_size) {
-    exe_writer writer;
-    writer.at = 0;
-    writer.buffer_size = buffer_size;
-    writer.buffer = ARENA_PUSH_ARRAY(arena, u8, writer.buffer_size);
-    return writer;
 }
 
 void write_import_dir_entry(exe_writer *writer, u32 import_lookup_rva, u32 time_date_stamp, u32 forwarder_chain, u32 name_rva, u32 thunk_table_rva) {

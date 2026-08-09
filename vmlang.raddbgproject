@@ -1,7 +1,7 @@
 // raddbg 0.9.25 project file
 
-recent_file: path: "x64_backend.c"
 recent_file: path: "vmlc.c"
+recent_file: path: "x64_backend.c"
 recent_file: path: "pal.h"
 recent_file: path: "typer.c"
 recent_file: path: "minkernel/crts/ucrt/src/appcrt/string/strnlen.cpp"
@@ -22,7 +22,7 @@ target:
 debug_info:
 {
   path: "C:/programming/vmlang/vmlc.pdb"
-  timestamp: 66221808039942
+  timestamp: 66222383069450
 }
 breakpoint:
 {
@@ -57,5 +57,10 @@ debug_info:
 breakpoint:
 {
   source_location: "x64_backend.c:249:1"
+  hit_count: 0
+}
+breakpoint:
+{
+  source_location: "vmlc.c:29:1"
   hit_count: 1
 }
