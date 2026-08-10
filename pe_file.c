@@ -214,6 +214,7 @@ static const instruction_form sub_rm64_imm8 = {
 typedef struct section_info section_info;
 struct section_info {
     string8 section_name;
+    const u8 *section_data;
     u32 rva;
     u32 virtual_size;
 
@@ -621,6 +622,7 @@ void write_ilt_and_iat(const import *imports, u32 import_count, exe_writer *idat
 section_info get_next_section_info(string8 section_name,
                                    u32 section_align,
                                    u32 file_align,
+                                   const u8 *section_data,
                                    u32 size_of_raw_data,
                                    section_info *prev_info) {
     section_info info;
@@ -629,6 +631,7 @@ section_info get_next_section_info(string8 section_name,
     info.virtual_size = ALIGN_UP_NEXT_POW2(size_of_raw_data, section_align);
     info.offset_on_disk = ALIGN_UP_NEXT_POW2(prev_info->offset_on_disk + prev_info->size_on_disk, file_align);
     info.size_on_disk =  ALIGN_UP_NEXT_POW2(size_of_raw_data, file_align);
+    info.section_data = section_data;
     info.size_of_raw_data = size_of_raw_data;
     *prev_info = info;
     return info;
@@ -657,6 +660,7 @@ section_list get_section_infos(mem_arena *arena, const u8 *text, u32 size_of_tex
                                u32 import_count, u32 file_align, u32 section_align, pe_format format) {
 
     u32 num_sections = 0;
+
     section_info *infos = NULL;
     section_info prev_section;
     memset(&prev_section, 0, sizeof(prev_section));
@@ -664,17 +668,17 @@ section_list get_section_infos(mem_arena *arena, const u8 *text, u32 size_of_tex
     if(size_of_text) {
         num_sections++;
         infos = arena_push(arena, sizeof(section_info), 1, 1);
-        *infos = get_next_section_info(STR8_LIT(".text"), section_align, file_align, size_of_text, &prev_section);
+        *infos = get_next_section_info(STR8_LIT(".text"), section_align, file_align, text, size_of_text, &prev_section);
     }
     if(size_of_rodata) {
         num_sections++;
         infos = arena_push(arena, sizeof(section_info), 1, 1);
-        *infos = get_next_section_info(STR8_LIT(".rodata"), section_align, file_align, size_of_rodata, &prev_section);
+        *infos = get_next_section_info(STR8_LIT(".rodata"), section_align, file_align, rodata, size_of_rodata, &prev_section);
     }
     if(size_of_data) {
         num_sections++;
         infos = arena_push(arena, sizeof(section_info), 1, 1);
-        *infos = get_next_section_info(STR8_LIT(".data"), section_align, file_align, size_of_data, &prev_section);
+        *infos = get_next_section_info(STR8_LIT(".data"), section_align, file_align, data, size_of_data, &prev_section);
     }
     if(size_of_bss) {
         num_sections++;
@@ -729,13 +733,13 @@ section_list get_section_infos(mem_arena *arena, const u8 *text, u32 size_of_tex
 
         num_sections++;
         infos = arena_push(arena, sizeof(section_info), 1, 1);
-        *infos = get_next_section_info(STR8_LIT(".idata"), section_align, file_align, idata_section_writer.at - (u64)idata_section_writer.buffer, &prev_section);
+        *infos = get_next_section_info(STR8_LIT(".idata"), section_align, file_align, idata_section_writer.buffer, idata_section_writer.at - (u64)idata_section_writer.buffer, &prev_section);
     }
     return(section_list) {.infos = infos - num_sections, .num_sections = num_sections};
 }
 
 section_info *get_section_info(section_list *list, string8 section_name) {
-    for(int i = 0; i < list->num_sections; i++) {
+    for(u32 i = 0; i < list->num_sections; i++) {
         section_info *info = &list->infos[i];
         if(str_are_strings_equal(section_name, info->section_name)) {
             return info;
@@ -810,13 +814,13 @@ void generate_pe_file(ast_node *root, string8 output_path, const u8 *text,
                                          size_of_headers, size_of_image, subsystem, has_debug_info);
     }
 
-    for(int i = 0; i < sec_list.num_sections; i++) {
+    for(u32 i = 0; i < sec_list.num_sections; i++) {
         section_info *info = &sec_list.infos[i];
         u32 characteristics = get_section_characteristics(info->section_name);
         write_image_section_header(&pe_writer, info->section_name, kind, file_align, info->virtual_size, info->rva, info->size_of_raw_data, 0, characteristics);
     }
 
-    for(int i = 0; i < sec_list.num_sections; i++) {
+    for(u32 i = 0; i < sec_list.num_sections; i++) {
         section_info *info = &sec_list.infos[i];
         write_bytes(&pe_writer, text, size_of_text);
         write_section_padding_bytes(&pe_writer, info);
