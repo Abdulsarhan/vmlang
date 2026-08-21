@@ -195,6 +195,12 @@ typedef struct section_list section_list;
 struct section_list {
     section_info *infos;
     u32 num_sections;
+
+    u32 import_dir_rva;
+    u32 import_dir_size;
+
+    u32 iat_rva;
+    u32 iat_size;
 };
 
 typedef enum encoding_form {
@@ -379,9 +385,12 @@ u32 pe_checksum(mem_arena *arena, const u8 *buffer, u32 file_size, u32 checksum_
 
     return sum;
 }
-void write_data_directory(exe_writer *writer, b32 has_debug_info) {
+
+void write_data_directory(exe_writer *writer, b32 has_debug_info,
+                          u32 import_dir_rva, u32 import_dir_size,
+                          u32 iat_rva, u32 iat_size) {
     write_data_directory_entry(writer, (image_data_directory_entry){0, 0}); // export
-    write_data_directory_entry(writer, (image_data_directory_entry){0, 0}); // import
+    write_data_directory_entry(writer, (image_data_directory_entry){import_dir_rva, import_dir_size}); // import
     write_data_directory_entry(writer, (image_data_directory_entry){0, 0}); // resources
     write_data_directory_entry(writer, (image_data_directory_entry){0, 0}); // exception
     write_data_directory_entry(writer, (image_data_directory_entry){0, 0}); // Certificates
@@ -401,9 +410,9 @@ void write_data_directory(exe_writer *writer, b32 has_debug_info) {
     write_data_directory_entry(writer, (image_data_directory_entry){0, 0}); // Thread Local Storage
     write_data_directory_entry(writer, (image_data_directory_entry){0, 0}); // Load Config Table
     write_data_directory_entry(writer, (image_data_directory_entry){0, 0}); // Bound Import (for dlls, I think)
-    write_data_directory_entry(writer, (image_data_directory_entry){0, 0}); // IAT
+    write_data_directory_entry(writer, (image_data_directory_entry){iat_rva, iat_size}); // IAT
     write_data_directory_entry(writer, (image_data_directory_entry){0, 0}); // Delay Import Desc (not used, I think)
-    write_data_directory_entry(writer, (image_data_directory_entry){0, 0}); // CLR runtime header and size. I assume that this should be zero for us since we are not using the CLR.
+    write_data_directory_entry(writer, (image_data_directory_entry){0, 0}); // Common Language Runtime (CLR) header and size. I assume that this should be zero for us since we are not using the CLR.
     write_data_directory_entry(writer, (image_data_directory_entry){0, 0}); // must be zero
 }
 
@@ -414,7 +423,9 @@ void write_windows_specific_fields_32(exe_writer *writer,
                                       u32 size_of_headers,
                                       u32 size_of_image,
                                       u16 subsystem,
-                                      b32 has_debug_info) {
+                                      b32 has_debug_info,
+                                      u32 import_dir_rva, u32 import_dir_size,
+                                      u32 iat_rva, u32 iat_size) {
     windows_specific_fields_32 fields;
 
     fields.ImageBase = image_base;
@@ -455,7 +466,7 @@ void write_windows_specific_fields_32(exe_writer *writer,
     fields.NumberOfRvaAndSizes = 16;
 
     write_bytes(writer, (const u8*)&fields, sizeof(windows_specific_fields_32));
-    write_data_directory(writer, has_debug_info);
+    write_data_directory(writer, has_debug_info, import_dir_rva, import_dir_size, iat_rva, iat_size);
 
     // at this point, this is what the offset should be for a 32 bit executable
     assert(writer->at == 0x80 + sizeof(coff_header) + sizeof(standard_coff_fields_32) + sizeof(windows_specific_fields_32) + sizeof(image_data_directory_entry) * 16);
@@ -464,7 +475,9 @@ void write_windows_specific_fields_32(exe_writer *writer,
 void write_windows_specific_fields_64(exe_writer *writer, u64 image_base,
                                       u32 section_align, u32 file_align,
                                       u32 size_of_headers, u32 size_of_image,
-                                      u16 subsystem, b32 has_debug_info) {
+                                      u16 subsystem, b32 has_debug_info,
+                                      u32 import_dir_rva, u32 import_dir_size,
+                                      u32 iat_rva, u32 iat_size) {
     windows_specific_fields_64 fields;
     fields.ImageBase = image_base;
     fields.SectionAlignment = section_align;
@@ -504,7 +517,7 @@ void write_windows_specific_fields_64(exe_writer *writer, u64 image_base,
     fields.NumberOfRvaAndSizes = 16;
 
     write_bytes(writer, (const u8*)&fields, sizeof(windows_specific_fields_64));
-    write_data_directory(writer, has_debug_info);
+    write_data_directory(writer, has_debug_info, import_dir_rva, import_dir_size, iat_rva, iat_size);
     // at this point, this is what the offset should be for a 64 bit executable
     assert(writer->at == 0x80 + sizeof(coff_header) + sizeof(standard_coff_fields_64) + sizeof(windows_specific_fields_64) + sizeof(image_data_directory_entry) * 16);
 }
@@ -620,29 +633,35 @@ void write_ilt_and_iat(const import *imports, u32 import_count, exe_writer *idat
     u32 offset = idata_section_rva + idata_section_writer->at;
     u32 ilt_or_iat_entry_size = get_ilt_or_iat_entry_size(format);
 
+    // The hint/name table starts right after the ILTs and the IATs.
+    // Both tables together take 2 * (function_count + 1) entries per dll
+    // (the +1 is the null terminator entry), regardless of ordering.
     for(u32 i = 0; i < import_count; i++) {
         const import *dll = &imports[i];
         offset += ilt_or_iat_entry_size * 2 * dll->function_count;
     }
     offset += ilt_or_iat_entry_size * 2 * import_count;
 
+    // All ILTs first, then all IATs. Keeping the IATs contiguous lets the
+    // IAT data directory entry describe them with one exact range. (With a
+    // single dll this is byte-identical to the old interleaved layout.)
+    u32 ilt_block_start = idata_section_writer->at;
     for(u32 i = 0; i < import_count; i++) {
         const import *dll = &imports[i];
-
-        u32 ilt_start = idata_section_writer->at;
         for(u32 j = 0; j < dll->function_count; j++) {
             write_ilt_or_iat_entry(idata_section_writer, format, offset);
             offset += get_hint_name_table_entry_size(dll->function_names[j]);
         }
         write_ilt_or_iat_entry(idata_section_writer, format, 0); // null entry
-        u32 ilt_size = idata_section_writer->at - ilt_start;
-
-        // The IAT starts out byte-identical to the ILT -- the loader
-        // overwrites the IAT copy with real function addresses at load
-        // time, but until then both tables hold the same hint/name RVAs.
-        // Duplicate the bytes we already wrote instead of recomputing them.
-        write_bytes(idata_section_writer, &idata_section_writer->buffer[ilt_start], ilt_size);
     }
+    u32 ilt_block_size = idata_section_writer->at - ilt_block_start;
+
+    // The IAT starts out byte-identical to the ILT -- the loader
+    // overwrites the IAT copy with real function addresses at load
+    // time, but until then both tables hold the same hint/name RVAs.
+    // The IATs are laid out in the same per-dll order as the ILTs, so
+    // the whole IAT block is one copy of the whole ILT block.
+    write_bytes(idata_section_writer, &idata_section_writer->buffer[ilt_block_start], ilt_block_size);
 }
 
 section_info get_first_section_info(string8 section_name, u32 section_align,
@@ -733,12 +752,21 @@ section_list get_section_infos(mem_arena *arena, const u8 *text, u32 size_of_tex
         assert(0); // still not sure what to do about BSS.
     }
 
+    u32 import_dir_rva = 0;
+    u32 import_dir_size = 0;
+    u32 iat_rva = 0;
+    u32 iat_size = 0;
+
     if(import_count) {
         exe_writer idata_section_writer = writer_init(arena, mebibytes(10));
         const u32 idata_rva = get_next_section_rva(section_align, &infos[idx - 1]);
         const u32 entry_size = get_ilt_or_iat_entry_size(format);
 
         u32 size_of_directory_table = (import_count + 1) * 0x14; // +1 for null descriptor
+
+        // The import descriptor table is the first thing in the section.
+        import_dir_rva = idata_rva;
+        import_dir_size = size_of_directory_table;
 
         u32 *dll_name_offset = arena_push(arena, sizeof(u32) * import_count, alignof(u32), 1);
         u32 running = size_of_directory_table;
@@ -754,11 +782,15 @@ section_list get_section_infos(mem_arena *arena, const u8 *text, u32 size_of_tex
         u32 *iat_offset = arena_push(arena, sizeof(u32) * import_count, alignof(u32), 1);
         running = ilt_iat_start;
         for(u32 i = 0; i < import_count; i++) {
-            u32 table_size = (imports[i].function_count + 1) * entry_size;
             ilt_offset[i] = running;
-            running += table_size;
+            running += (imports[i].function_count + 1) * entry_size;
+        }
+        iat_rva = idata_rva + running;
+        for(u32 i = 0; i < import_count; i++) {
             iat_offset[i] = running;
+            u32 table_size = (imports[i].function_count + 1) * entry_size;
             running += table_size;
+            iat_size += table_size;
         }
 
         for(u32 i = 0; i < import_count; i++) {
@@ -796,7 +828,9 @@ section_list get_section_infos(mem_arena *arena, const u8 *text, u32 size_of_tex
         idx++;
     }
 
-    return (section_list) {.infos = infos, .num_sections = num_sections};
+    return (section_list) {.infos = infos, .num_sections = num_sections,
+                           .import_dir_rva = import_dir_rva, .import_dir_size = import_dir_size,
+                           .iat_rva = iat_rva, .iat_size = iat_size};
 }
 section_info *get_section_info(section_list *list, string8 section_name) {
     for(u32 i = 0; i < list->num_sections; i++) {
@@ -863,10 +897,14 @@ void generate_pe_file(ast_node *root, string8 output_path, const u8 *text,
     u16 subsystem = is_gui ? IMAGE_SUBSYSTEM_WINDOWS_GUI : IMAGE_SUBSYSTEM_WINDOWS_CUI;
     if(format == pe_format_pe32_plus) {
         write_windows_specific_fields_64(&pe_writer, image_base, section_align, file_align,
-                                         size_of_headers, size_of_image, subsystem, has_debug_info);
+                                         size_of_headers, size_of_image, subsystem, has_debug_info,
+                                         sec_list.import_dir_rva, sec_list.import_dir_size,
+                                         sec_list.iat_rva, sec_list.iat_size);
     } else {
         write_windows_specific_fields_32(&pe_writer, image_base, section_align, file_align,
-                                         size_of_headers, size_of_image, subsystem, has_debug_info);
+                                         size_of_headers, size_of_image, subsystem, has_debug_info,
+                                         sec_list.import_dir_rva, sec_list.import_dir_size,
+                                         sec_list.iat_rva, sec_list.iat_size);
     }
 
     for(u32 i = 0; i < sec_list.num_sections; i++) {

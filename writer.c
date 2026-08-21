@@ -3,6 +3,7 @@
 exe_writer writer_init(mem_arena *arena, u64 buffer_size) {
     exe_writer writer;
     writer.at = 0;
+    writer.bit_pos = 0;
     writer.buffer_size = buffer_size;
     writer.buffer = ARENA_PUSH_ARRAY(arena, u8, writer.buffer_size);
     return writer;
