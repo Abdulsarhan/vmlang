@@ -10,15 +10,10 @@ struct import {
     u32 function_count;
 };
 
-void generate_pe_file(ast_node *root,
-                      string8 output_path,
-                      const u8 *text,
-                      u32 size_of_text,
-                      const u8 *data,
-                      u32 size_of_data,
-                      const u8 *rodata,
-                      u32 size_of_rodata,
-                      u32 size_of_bss,
-                      const import *imports,
+void generate_pe_file(ast_node *root, string8 output_path,
+                      const u8 *text, u32 size_of_text,
+                      const u8 *data, u32 size_of_data,
+                      const u8 *rodata, u32 size_of_rodata,
+                      u32 size_of_bss, const import *imports,
                       u32 import_count);
 #endif //PE_FILE_H

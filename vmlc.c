@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
     assert(stream.at);
 
     ast tree = {0};
-    memset(&tree, 0, sizeof(ast));
+    memory_zero(&tree, sizeof(ast));
     tree.nodes = ARENA_PUSH_ARRAY(arena, ast_node, 16384);
     tree.file_name = stream.file_name;
 
@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
         print_ast(root, 0);
     }
 
-    generate_code(root, STR8_LIT("./test.exe"), tt_x64_pc_windows, output_format_pe);
+    generate_code(root, s("./test.exe"), tt_x64_pc_windows, output_format_pe);
 
     return 0;
 }

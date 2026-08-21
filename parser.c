@@ -740,40 +740,152 @@ ast_node *parse_function_declaration(ast *ast, token_stream *tok_stream, ast_nod
     return function_declaration_node(ast, ident, params, block, return_type);
 }
 
+ast_node *parse_toplevel_statement(ast *ast, token_stream *tok_stream) {
+    token tok = peek_token(tok_stream);
+    switch(tok.kind) {
+        case TOKEN_KIND_IF: {
+            ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
+            report_parse_error(ast, err_node, "Cannot have an if statement in the global scope.");
+            return err_node;
+            break;
+        }
+        case TOKEN_KIND_WHILE: {
+            ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
+            report_parse_error(ast, err_node, "Cannot have a while loop in the global scope.");
+            return err_node;
+            break;
+        }
+        case TOKEN_KIND_FOR: {
+            ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
+            report_parse_error(ast, err_node, "Cannot have a for loop in the global scope.");
+            return err_node;
+            break;
+        }
+        case TOKEN_KIND_CONTINUE: {
+            ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
+            report_parse_error(ast, err_node, "Cannot have a continue in the global scope. It has to be in a switch statement that's in a function.");
+            return err_node;
+            break;
+        }
+        case TOKEN_KIND_BREAK: {
+            ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
+            report_parse_error(ast, err_node, "Cannot have a break in the global scope. It has to be in a switch statement that's in a function.");
+            return err_node;
+            break;
+        }
+        case TOKEN_KIND_RETURN: {
+            ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
+            report_parse_error(ast, err_node, "Cannot have a return in the global scope. It has to be in a function.");
+            return err_node;
+            break;
+        }
+        case '{': {
+            ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
+            report_parse_error(ast, err_node, "Cannot have a block in the global scope.");
+            return err_node;
+            break;
+        }
+        case TOKEN_KIND_IDENTIFIER:
+            tok = peek_next_token(tok_stream);
+            if (tok.kind == ',') {
+                ast_node **lhs_list = NULL;
+                token first_tok = eat_token(tok_stream);
+                ast_node *first = ident_node(ast, first_tok.ident_string);
+                da_push(lhs_list, first);
+
+                while (peek_token(tok_stream).kind == ',') {
+                    match_and_eat_token(tok_stream, ',');
+                    token next_tok = eat_token(tok_stream);
+                    ast_node *lhs = ident_node(ast, next_tok.ident_string);
+                    da_push(lhs_list, lhs);
+                }
+
+                tok = peek_token(tok_stream);
+                binop_kind assign_op = assignment_binop_from_token(tok);
+                if (assign_op == BINOP_NONE) {
+                    ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
+                    report_parse_error(ast, err_node, "expected an assignment operator after the variables in the multi-assignment expression.");
+                    return err_node;
+                }
+                match_and_eat_token(tok_stream, tok.kind);
+                ast_node *rhs = parse_expression(ast, tok_stream, -9999);
+
+                b32 matched = match_and_eat_token(tok_stream, ';');
+                if (!matched) {
+                    ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
+                    report_parse_error(ast, err_node, "expected ';' after multi-assignment");
+                    return err_node;
+                }
+                return multi_assign_node(ast, assign_op, lhs_list, rhs);
+            }
+
+            ast_node *expr = parse_expression(ast, tok_stream, -9999);
+            b32 matched = match_and_eat_token(tok_stream, ';');
+            if(expr->kind == NODE_KIND_ERROR) {
+                return expr;
+            } else if(!matched) {
+                expr = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
+                report_parse_error(ast, expr, "expected ';' after expression");
+                return expr;
+            } else {
+                return expr;
+            }
+            break;
+        case TOKEN_KIND_INT_LITERAL:
+        case TOKEN_KIND_FLOAT_LITERAL:
+        case TOKEN_KIND_STRING_LITERAL:
+        case TOKEN_KIND_CHAR_LITERAL:
+        case TOKEN_KIND_BOOL_LITERAL:
+            while(1) {
+                token tok = eat_token(tok_stream);
+                if(tok.kind == ';') {
+                    break;
+                }
+            }
+            ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
+            report_parse_error(ast, err_node, "statement cannot start with a literal.");
+            return err_node;
+            break;
+    }
+    return NULL;
+}
+
 ast_node *parse_declaration(ast *ast, token_stream *tok_stream) {
     token ident_tok = {0};
     if(!(peek_token(tok_stream).kind == TOKEN_KIND_IDENTIFIER)) {
         ast_node *err_node = error_node(ast, ident_tok, ERROR_KIND_PARSE_ERROR);
-        report_parse_error(ast, err_node, "Expected a name belonging to a function, union, enum, or struct declaration.");
+        report_parse_error(ast, err_node, "Expected a name belonging to a toplevel statement, function, union, enum, or struct declaration.");
         return err_node;
     } else {
         ident_tok = eat_token(tok_stream);
     }
     ast_node *ident = ident_node(ast, ident_tok.ident_string);
-    match_and_eat_token(tok_stream, TOKEN_KIND_COLON_COLON);
-
-    token tok = eat_token(tok_stream);
-    if (tok.kind == '(') {
-        return parse_function_declaration(ast, tok_stream, ident);
-    } else if (tok.kind == TOKEN_KIND_STRUCT) {
-        ast_node *block = parse_block(ast, tok_stream);
-        return struct_declaration_node(ast, ident, block);
-    } else if (tok.kind == TOKEN_KIND_ENUM) {
-        ast_node *block = parse_block(ast, tok_stream);
-        return enum_declaration_node(ast, ident, block);
-    } else if (tok.kind == TOKEN_KIND_UNION) {
-        ast_node *block = parse_block(ast, tok_stream);
-        return union_declaration_node(ast, ident, block);
-    } else {
-        while(1) {
-            token tok = eat_token(tok_stream);
-            if(tok.kind == '}') {
-                break;
+    if(match_and_eat_token(tok_stream, TOKEN_KIND_COLON_COLON)) {
+        token tok = eat_token(tok_stream);
+        if (tok.kind == '(') {
+            return parse_function_declaration(ast, tok_stream, ident);
+        } else if (tok.kind == TOKEN_KIND_STRUCT) {
+            ast_node *block = parse_block(ast, tok_stream);
+            return struct_declaration_node(ast, ident, block);
+        } else if (tok.kind == TOKEN_KIND_ENUM) {
+            ast_node *block = parse_block(ast, tok_stream);
+            return enum_declaration_node(ast, ident, block);
+        } else if (tok.kind == TOKEN_KIND_UNION) {
+            ast_node *block = parse_block(ast, tok_stream);
+            return union_declaration_node(ast, ident, block);
+        } else {
+            while(1) {
+                token tok = eat_token(tok_stream);
+                if(tok.kind == '}') {
+                    break;
+                }
             }
+            ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
+            report_parse_error(ast, err_node, "Error: Expected function parameters or 'union' or 'enum' or 'struct' after \"::\".");
+            return err_node;
         }
-        ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
-        report_parse_error(ast, err_node, "Error: Expected function parameters or 'union' or 'enum' or 'struct' after \"::\".");
-        return err_node;
+    } else {
+        return parse_toplevel_statement(ast, tok_stream);
     }
     return NULL;
 }

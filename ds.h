@@ -383,11 +383,11 @@
 /* : Type -> Alignment */
 
 #if COMPILER_MSVC
-# define align_of(T) __alignof(T)
+# define alignof(T) __alignof(T)
 #elif COMPILER_CLANG
-# define align_of(T) __alignof(T)
+# define alignof(T) __alignof(T)
 #elif COMPILER_GCC
-# define align_of(T) __alignof__(T)
+# define alignof(T) __alignof__(T)
 #else
 # error alignof not defined for this compiler.
 #endif
@@ -428,12 +428,12 @@
 #define memory_set(dst, byte, size)    memset((dst), (byte), (size))
 #define memory_compare(a, b, size)     memcmp((a), (b), (size))
 
-#define memory_copy_struct(d,s)  memory_copy((d),(s),sizeof(*(d)))
-#define memory_copy_array(d,s)   memory_copy((d),(s),sizeof(d))
-#define memory_copy_typed(d,s,c) memory_copy((d),(s),sizeof(*(d))*(c))
-#define memory_copy_str8(dst, s) memory_copy(dst, (s).data, (s).length)
+#define memory_copy_struct(dest,src)  memory_copy((dest),(src),sizeof(*(dest)))
+#define memory_copy_array(dest,src)   memory_copy((dest),(src),sizeof(dest))
+#define memory_copy_typed(dest,src,c) memory_copy((dest),(src),sizeof(*(dest))*(c))
+#define memory_copy_str8(dest, src) memory_copy(dest, (src).data, (src).length)
 
-#define memory_zero(s,z)        memset((s),0,(z))
+#define memory_zero(ptr, siz)        memset((ptr),0,(siz))
 #define memory_zero_struct(s)   memory_zero((s),sizeof(*(s)))
 #define memory_zero_array(a)    memory_zero((a),sizeof(a))
 #define memory_zero_typed(m,c)  memory_zero((m),sizeof(*(m))*(c))
@@ -486,11 +486,11 @@
 /* Arena things */
 #define ARENA_PUSH_ARRAY_ALIGN(arena, T, n, align) (T *)arena_push(arena, sizeof(T) * n, align, 1)
 #define ARENA_PUSH_ARRAY_ALIGN_NO_ZERO(arena, T, n, align) (T *)arena_push(arena, sizeof(T) * n, align, 0)
-#define ARENA_PUSH_ARRAY(arena, T, n) ARENA_PUSH_ARRAY_ALIGN(arena, T, n, align_of(T))
-#define ARENA_PUSH_ARRAY_NO_ZERO(arena, T, n) ARENA_PUSH_ARRAY_ALIGN_NO_ZERO(arena, T, n, align_of(T))
+#define ARENA_PUSH_ARRAY(arena, T, n) ARENA_PUSH_ARRAY_ALIGN(arena, T, n, alignof(T))
+#define ARENA_PUSH_ARRAY_NO_ZERO(arena, T, n) ARENA_PUSH_ARRAY_ALIGN_NO_ZERO(arena, T, n, alignof(T))
 
 /* strings */
-#define STR8_LIT(x) (string8){.data = (u8*)x, .length = sizeof(x) - 1}
+#define s(x) (string8){.data = (u8*)x, .length = sizeof(x) - 1}
 
 /* booleans */
 #define true 1
@@ -623,7 +623,7 @@ DSAPI string8 str_postfix(string8 str, u64 length);
 DSAPI string8 str_prefix(string8 str, u64 length);
 
 /* string compares */
-DSAPI b32 str_are_strings_equal(string8 a, string8 b);
+DSAPI b32 str_match(string8 a, string8 b);
 
 /* convert numbers to string */
 DSAPI string8 str_from_char(mem_arena *arena, u8 ch);
@@ -786,8 +786,7 @@ static T *da_arrgrowf_wrapper(T *a, size_t elemsize, size_t addlen, size_t min_c
 
 // This aligns to the next boundary that is specified in 'a'
 // 'a' must be a power of two for this to work.
-#define ALIGN_UP_NEXT_POW2(x, a) ((((x) & ~((a) - 1)) + (a)))
-
+#define ALIGN_UP_NEXT_POW2(x, a) (((x) + (a) - 1) & ~((a) - 1))
 #define ARENA_BASE_POS sizeof(mem_arena)
 
 #define hm_slot_states_internal(header) \
@@ -816,18 +815,6 @@ static void *ds_memset(void *buf, int value, size_t count) {
     }
 
     return buf;
-}
-
-void *ds_memcpy(void *dest, const void *src, size_t n) {
-    unsigned char *d = dest;
-    const unsigned char *s = src;
-    size_t i = 0;
-
-    for (; i < n; i++) {
-        d[i] = s[i];
-    }
-
-    return dest;
 }
 
 static char *ds_strcpy(char *dst, const char *src) {
@@ -893,7 +880,7 @@ DSAPI void *arena_push(mem_arena *arena, size_t size, size_t alignment, b32 zero
     arena->pos += total_size;
 
     if (zero_out_the_memory) {
-        ds_memset((void *)aligned, 0, total_size);
+        memory_zero((void *)aligned, total_size);
     }
 
     return (void *)aligned;
@@ -940,7 +927,7 @@ DSAPI int arena_reset_region(const mem_arena *arena, void *region_start, size_t 
     uintptr_t region_addr = (uintptr_t)region_start;
 
     if (region_addr >= arena_start && region_addr + region_size <= arena_end) {
-        ds_memset(region_start, 0, region_size);
+        memory_zero(region_start, region_size);
         return 0;
     }
     return -1;
@@ -993,7 +980,7 @@ DSAPI void *arena_push(mem_arena *arena, size_t size, size_t alignment, ds_bool 
     arena->pos += total_size;
 
     if (zero_out_the_memory) {
-        ds_memset((void *)aligned, 0, total_size);
+        memory_zero((void *)aligned, total_size);
     }
 
     return (void *)aligned;
@@ -1036,7 +1023,7 @@ DSAPI int arena_reset_region(const mem_arena *arena, void *region_start, size_t 
     uintptr_t region_addr = (uintptr_t)region_start;
 
     if (region_addr >= arena_start && region_addr + region_size <= arena_end) {
-        ds_memset(region_start, 0, region_size);
+        memory_zero(region_start, region_size);
         return 0;
     }
     return -1;
@@ -1174,7 +1161,7 @@ DSAPI string8 str_prefix(string8 str, u64 length) {
   return str;
 }
 
-DSAPI b32 str_are_strings_equal(string8 a, string8 b) {
+DSAPI b32 str_match(string8 a, string8 b) {
     if (a.length != b.length) {
         return false;
     }
@@ -1201,7 +1188,7 @@ DSAPI string8 str_from_i32(mem_arena *arena, i32 value) {
     string8 str;
     str.data = (u8 *)arena_push(arena, length, 1, 0);
     str.length = length;
-    ds_memcpy(str.data, tmp, length);
+    memory_copy(str.data, tmp, length);
     return str;
 }
 
@@ -1212,7 +1199,7 @@ DSAPI string8 str_from_i64(mem_arena *arena, i64 value) {
     string8 str;
     str.data = (u8 *)arena_push(arena, length, 1, 0);
     str.length = length;
-    ds_memcpy(str.data, tmp, length);
+    memory_copy(str.data, tmp, length);
     return str;
 }
 
@@ -1223,7 +1210,7 @@ DSAPI string8 str_from_f32(mem_arena *arena, f32 value) {
     string8 str;
     str.data = (u8 *)arena_push(arena, length, 1, 0);
     str.length = length;
-    ds_memcpy(str.data, tmp, length);
+    memory_copy(str.data, tmp, length);
     return str;
 }
 
@@ -1234,7 +1221,7 @@ DSAPI string8 str_from_f64(mem_arena *arena, f64 value) {
     string8 str;
     str.data = (u8 *)arena_push(arena, length, 1, 0);
     str.length = length;
-    ds_memcpy(str.data, tmp, length);
+    memory_copy(str.data, tmp, length);
     return str;
 }
 
@@ -1313,7 +1300,7 @@ DSAPI f64 str_to_f64(string8 str) {
 
 DSAPI const char *str_to_cstr(mem_arena *arena, string8 str) {
     char *c_string = (char *)arena_push(arena, str.length + 1, 1, 1);
-    ds_memcpy(c_string, str.data, str.length);
+    memory_copy(c_string, str.data, str.length);
     c_string[str.length] = '\0';
     return c_string;
 }
@@ -1334,7 +1321,7 @@ DSAPI string8 str_format(mem_arena *arena, string8 fmt, ...) {
 
                 case 's': {
                     string8 s = va_arg(ap, string8);
-                    ds_memcpy((char *)arena + arena->pos, s.data, s.length);
+                    memory_copy((char *)arena + arena->pos, s.data, s.length);
                     arena->pos += s.length;
                 } break;
 
@@ -1342,7 +1329,7 @@ DSAPI string8 str_format(mem_arena *arena, string8 fmt, ...) {
                     int d = va_arg(ap, int);
                     u8 tmp[32];
                     int written = snprintf((char*)tmp, 32, "%d", d);
-                    ds_memcpy((char *)arena + arena->pos, tmp, written);
+                    memory_copy((char *)arena + arena->pos, tmp, written);
                     arena->pos += written;
                 } break;
 
@@ -1352,7 +1339,7 @@ DSAPI string8 str_format(mem_arena *arena, string8 fmt, ...) {
                         size_t zu = va_arg(ap, size_t);
                         char tmp[32];
                         int written = sprintf(tmp, "%zu", zu);
-                        ds_memcpy((char *)arena + arena->pos, tmp, written);
+                        memory_copy((char *)arena + arena->pos, tmp, written);
                         arena->pos += written;
                     }
                 } break;
@@ -1537,7 +1524,7 @@ internal b32 hm_cmp_string8(const void *a, const void *b, u32 key_size) {
     (void)key_size;
     string8 *sa = (string8 *)a;
     string8 *sb = (string8 *)b;
-    return str_are_strings_equal(*sa, *sb);
+    return str_match(*sa, *sb);
 }
 
 // ---------------------------------------------------------------------------
@@ -1737,7 +1724,7 @@ internal void hm_clear_impl(void *hm_ptr) {
     hm_header *header = (hm_header*)hm_ptr - 1;
     header->count = 0;
     u8 *slot_states = hm_slot_states_internal(header);
-    memset(slot_states, HM_SLOT_EMPTY, header->capacity * sizeof(*slot_states));
+    memory_set(slot_states, HM_SLOT_EMPTY, header->capacity * sizeof(*slot_states));
 }
 
 /* dynamic arrays */

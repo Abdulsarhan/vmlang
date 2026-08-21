@@ -10,32 +10,32 @@ are already in scope.
 
 type_kind is_primitive_type(string8 ident) {
     if(ident.length == 2) {
-        if(str_are_strings_equal(ident, STR8_LIT("i8"))) {
+        if(str_match(ident, s("i8"))) {
             return type_kind_i8;
-        } else if(str_are_strings_equal(ident, STR8_LIT("u8"))) {
+        } else if(str_match(ident, s("u8"))) {
             return type_kind_u8;
         }
     } else if(ident.length == 3) {
-        if(str_are_strings_equal(ident, STR8_LIT("i16"))) {
+        if(str_match(ident, s("i16"))) {
             return type_kind_i16;
-        } else if(str_are_strings_equal(ident, STR8_LIT("i32"))) {
+        } else if(str_match(ident, s("i32"))) {
             return type_kind_i32;
-        } else if(str_are_strings_equal(ident, STR8_LIT("i64"))) {
+        } else if(str_match(ident, s("i64"))) {
             return type_kind_i64;
-        } else if(str_are_strings_equal(ident, STR8_LIT("u16"))) {
+        } else if(str_match(ident, s("u16"))) {
             return type_kind_u16;
-        } else if(str_are_strings_equal(ident, STR8_LIT("u32"))) {
+        } else if(str_match(ident, s("u32"))) {
             return type_kind_u32;
-        } else if(str_are_strings_equal(ident, STR8_LIT("u64"))) {
+        } else if(str_match(ident, s("u64"))) {
             return type_kind_u64;
         }
     } else if(ident.length == 4) {
-        if(str_are_strings_equal(ident, STR8_LIT("bool"))) {
+        if(str_match(ident, s("bool"))) {
             return type_kind_bool;
-        } else if(str_are_strings_equal(ident, STR8_LIT("enum"))) {
+        } else if(str_match(ident, s("enum"))) {
             return type_kind_enum;
         }
-    } else if(str_are_strings_equal(ident, STR8_LIT("struct"))) {
+    } else if(str_match(ident, s("struct"))) {
         return type_kind_struct;
     }
     return type_kind_none;
@@ -402,24 +402,24 @@ void make_primitive_type(typer *tp, string8 name) {
 }
 
 void typechecker_prepass(typer *tp, ast_node *root) {
-    make_primitive_type(tp, STR8_LIT("i8"));
-    make_primitive_type(tp, STR8_LIT("i16"));
-    make_primitive_type(tp, STR8_LIT("i32"));
-    make_primitive_type(tp, STR8_LIT("i64"));
+    make_primitive_type(tp, s("i8"));
+    make_primitive_type(tp, s("i16"));
+    make_primitive_type(tp, s("i32"));
+    make_primitive_type(tp, s("i64"));
 
-    make_primitive_type(tp, STR8_LIT("u8"));
-    make_primitive_type(tp, STR8_LIT("u16"));
-    make_primitive_type(tp, STR8_LIT("u32"));
-    make_primitive_type(tp, STR8_LIT("u64"));
+    make_primitive_type(tp, s("u8"));
+    make_primitive_type(tp, s("u16"));
+    make_primitive_type(tp, s("u32"));
+    make_primitive_type(tp, s("u64"));
 
-    make_primitive_type(tp, STR8_LIT("f32"));
-    make_primitive_type(tp, STR8_LIT("f64"));
+    make_primitive_type(tp, s("f32"));
+    make_primitive_type(tp, s("f64"));
 
-    make_primitive_type(tp, STR8_LIT("bool"));
+    make_primitive_type(tp, s("bool"));
 
-    make_primitive_type(tp, STR8_LIT("struct"));
-    make_primitive_type(tp, STR8_LIT("enum"));
-    make_primitive_type(tp, STR8_LIT("union"));
+    make_primitive_type(tp, s("struct"));
+    make_primitive_type(tp, s("enum"));
+    make_primitive_type(tp, s("union"));
 
     for (int i = 0; i < da_len(root->file.declarations); i++) {
         typecheck_declaration_header(tp, root->file.declarations[i]);

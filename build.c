@@ -1,7 +1,6 @@
 #define CB_IMPLEMENTATION
 #include "cb.h"
 
-
 int main(int argc, char **argv) {
     command cmd = {0};
     cb_rebuild_yourself(argc, argv);

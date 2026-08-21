@@ -108,58 +108,58 @@ u8 parse_escape_char(tokenizer *tokenizer, u8 *escape_start) {
 
 string8 token_kind_to_string(token_kind kind) {
     switch(kind) {
-        case '+':                                return STR8_LIT("+");
-        case '-':                                return STR8_LIT("-");
-        case '/':                                return STR8_LIT("/");
-        case '%':                                return STR8_LIT("%");
-        case '*':                                return STR8_LIT("*");
-        case '=':                                return STR8_LIT("=");
-        case ':':                                return STR8_LIT(":");
-        case '>':                                return STR8_LIT(">");
-        case '<':                                return STR8_LIT("<");
-        case '&':                                return STR8_LIT("&");
-        case '^':                                return STR8_LIT("^");
-        case '|':                                return STR8_LIT("|");
-        case ';':                                return STR8_LIT(";");
+        case '+':                                return s("+");
+        case '-':                                return s("-");
+        case '/':                                return s("/");
+        case '%':                                return s("%");
+        case '*':                                return s("*");
+        case '=':                                return s("=");
+        case ':':                                return s(":");
+        case '>':                                return s(">");
+        case '<':                                return s("<");
+        case '&':                                return s("&");
+        case '^':                                return s("^");
+        case '|':                                return s("|");
+        case ';':                                return s(";");
 
-        case TOKEN_KIND_PLUS_EQUAL:              return STR8_LIT("+=");
-        case TOKEN_KIND_MINUS_EQUAL:             return STR8_LIT("-=");
-        case TOKEN_KIND_DIVIDE_EQUAL:            return STR8_LIT("/=");
-        case TOKEN_KIND_MOD_EQUAL:               return STR8_LIT("%=");
-        case TOKEN_KIND_MULTIPLY_EQUAL:          return STR8_LIT("*=");
-        case TOKEN_KIND_XOR_EQUAL:               return STR8_LIT("^=");
-        case TOKEN_KIND_AND_EQUAL:               return STR8_LIT("&=");
-        case TOKEN_KIND_OR_EQUAL:                return STR8_LIT("|=");
-        case TOKEN_KIND_EQUAL_EQUAL:             return STR8_LIT("==");
-        case TOKEN_KIND_NOT_EQUAL:               return STR8_LIT("!=");
-        case TOKEN_KIND_COLON_EQUAL:             return STR8_LIT(":=");
-        case TOKEN_KIND_DOT_DOT:                 return STR8_LIT("..");
-        case TOKEN_KIND_LEFT_SHIFT_EQUAL:        return STR8_LIT("<<=");
-        case TOKEN_KIND_RIGHT_SHIFT_EQUAL:       return STR8_LIT(">>=");
-        case TOKEN_KIND_GREATER_THAN_EQUAL:      return STR8_LIT(">=");
-        case TOKEN_KIND_LESS_THAN_EQUAL:         return STR8_LIT("<=");
-        case TOKEN_KIND_RIGHT_SHIFT:             return STR8_LIT(">");
-        case TOKEN_KIND_LEFT_SHIFT:              return STR8_LIT("<");
-        case TOKEN_KIND_COLON_COLON:             return STR8_LIT("::");
-        case TOKEN_KIND_RIGHT_ARROW:             return STR8_LIT("->");
-        case TOKEN_KIND_AND_AND:                 return STR8_LIT("&&");
-        case TOKEN_KIND_OR_OR:                   return STR8_LIT("||");
-        case TOKEN_KIND_PLUS_PLUS:               return STR8_LIT("++");
-        case TOKEN_KIND_MINUS_MINUS:             return STR8_LIT("--");
-        case TOKEN_KIND_END_OF_STREAM:           return STR8_LIT("end_of_stream");
-        case TOKEN_KIND_IF:                      return STR8_LIT("if");
-        case TOKEN_KIND_ELSE:                    return STR8_LIT("else");
-        case TOKEN_KIND_WHILE:                   return STR8_LIT("while");
-        case TOKEN_KIND_FOR:                     return STR8_LIT("for");
-        case TOKEN_KIND_UNION:                   return STR8_LIT("union");
-        case TOKEN_KIND_STRUCT:                  return STR8_LIT("struct");
-        case TOKEN_KIND_ENUM:                    return STR8_LIT("enum");
-        case TOKEN_KIND_CONTINUE:                return STR8_LIT("continue");
-        case TOKEN_KIND_BREAK:                   return STR8_LIT("break");
-        case TOKEN_KIND_RETURN:                  return STR8_LIT("return");
-        default:                                 return STR8_LIT("");
+        case TOKEN_KIND_PLUS_EQUAL:              return s("+=");
+        case TOKEN_KIND_MINUS_EQUAL:             return s("-=");
+        case TOKEN_KIND_DIVIDE_EQUAL:            return s("/=");
+        case TOKEN_KIND_MOD_EQUAL:               return s("%=");
+        case TOKEN_KIND_MULTIPLY_EQUAL:          return s("*=");
+        case TOKEN_KIND_XOR_EQUAL:               return s("^=");
+        case TOKEN_KIND_AND_EQUAL:               return s("&=");
+        case TOKEN_KIND_OR_EQUAL:                return s("|=");
+        case TOKEN_KIND_EQUAL_EQUAL:             return s("==");
+        case TOKEN_KIND_NOT_EQUAL:               return s("!=");
+        case TOKEN_KIND_COLON_EQUAL:             return s(":=");
+        case TOKEN_KIND_DOT_DOT:                 return s("..");
+        case TOKEN_KIND_LEFT_SHIFT_EQUAL:        return s("<<=");
+        case TOKEN_KIND_RIGHT_SHIFT_EQUAL:       return s(">>=");
+        case TOKEN_KIND_GREATER_THAN_EQUAL:      return s(">=");
+        case TOKEN_KIND_LESS_THAN_EQUAL:         return s("<=");
+        case TOKEN_KIND_RIGHT_SHIFT:             return s(">");
+        case TOKEN_KIND_LEFT_SHIFT:              return s("<");
+        case TOKEN_KIND_COLON_COLON:             return s("::");
+        case TOKEN_KIND_RIGHT_ARROW:             return s("->");
+        case TOKEN_KIND_AND_AND:                 return s("&&");
+        case TOKEN_KIND_OR_OR:                   return s("||");
+        case TOKEN_KIND_PLUS_PLUS:               return s("++");
+        case TOKEN_KIND_MINUS_MINUS:             return s("--");
+        case TOKEN_KIND_END_OF_STREAM:           return s("end_of_stream");
+        case TOKEN_KIND_IF:                      return s("if");
+        case TOKEN_KIND_ELSE:                    return s("else");
+        case TOKEN_KIND_WHILE:                   return s("while");
+        case TOKEN_KIND_FOR:                     return s("for");
+        case TOKEN_KIND_UNION:                   return s("union");
+        case TOKEN_KIND_STRUCT:                  return s("struct");
+        case TOKEN_KIND_ENUM:                    return s("enum");
+        case TOKEN_KIND_CONTINUE:                return s("continue");
+        case TOKEN_KIND_BREAK:                   return s("break");
+        case TOKEN_KIND_RETURN:                  return s("return");
+        default:                                 return s("");
     }
-    return STR8_LIT("");
+    return s("");
 }
 
 string8 token_to_string(mem_arena *arena, token tok) {
@@ -168,11 +168,11 @@ string8 token_to_string(mem_arena *arena, token tok) {
         case TOKEN_KIND_INT_LITERAL:             return str_from_i64(arena, tok.integer_value);
         case TOKEN_KIND_FLOAT_LITERAL:           return str_from_f64(arena, tok.float_value);
         case TOKEN_KIND_CHAR_LITERAL:            return str_from_char(arena, tok.char_value);
-        case TOKEN_KIND_BOOL_LITERAL:            return tok.bool_value ? STR8_LIT("true") : STR8_LIT("false");
+        case TOKEN_KIND_BOOL_LITERAL:            return tok.bool_value ? s("true") : s("false");
         case TOKEN_KIND_STRING_LITERAL:          return tok.string_value;
         default:                                 return token_kind_to_string(tok.kind);
     }
-    return STR8_LIT("");
+    return s("");
 }
 
 void set_line_and_column_number_on_token(tokenizer *tokenizer, token *tok, u64 token_len) {
@@ -321,7 +321,7 @@ token_stream tokenize(tokenizer *tokenizer) {
             case '"': /* TODO: Handle escaping inside of string literals */
                 u8 *string_start = tokenizer->at;
                 u64 string_len = 0;
-                b32 error = 0;
+                b32 error = false;
 
                 while(tokenizer->at < tokenizer->end && *tokenizer->at != '"') {
                     string_len++;
@@ -329,7 +329,7 @@ token_stream tokenize(tokenizer *tokenizer) {
                 }
                 if(tokenizer->at >= tokenizer->end) {
                     tok_report_error(tokenizer, "Error: unterminated string literal\n");
-                    error = 1;
+                    error = true;
                 }
 
                 eat_char(tokenizer);
@@ -527,54 +527,54 @@ token_stream tokenize(tokenizer *tokenizer) {
                     string8 tok = {.data = ident_start, .length = ident_len};
                     switch(ident_len) {
                         case 2:
-                            if(str_are_strings_equal(tok, STR8_LIT("if"))) {
+                            if(str_match(tok, s("if"))) {
                                 make_token(tokenizer, TOKEN_KIND_IF);
                             } else {
                                 make_ident(tokenizer, ident_start, ident_len);
                             }
                             break;
                         case 3:
-                            if(str_are_strings_equal(tok, STR8_LIT("for"))) {
+                            if(str_match(tok, s("for"))) {
                                 make_token(tokenizer, TOKEN_KIND_FOR);
                             } else {
                                 make_ident(tokenizer, ident_start, ident_len);
                             }
                             break;
                         case 4:
-                            if(str_are_strings_equal(tok, STR8_LIT("else"))) {
+                            if(str_match(tok, s("else"))) {
                                 make_token(tokenizer, TOKEN_KIND_ELSE);
-                            } else if(str_are_strings_equal(tok, STR8_LIT("enum"))) {
+                            } else if(str_match(tok, s("enum"))) {
                                 make_token(tokenizer, TOKEN_KIND_ENUM);
-                            } else if(str_are_strings_equal(tok, STR8_LIT("true"))) {
+                            } else if(str_match(tok, s("true"))) {
                                 make_bool_token(tokenizer, true, ident_len);
                             } else {
                                 make_ident(tokenizer, ident_start, ident_len);
                             }
                             break;
                         case 5:
-                            if(str_are_strings_equal(tok, STR8_LIT("false"))) {
+                            if(str_match(tok, s("false"))) {
                                 make_bool_token(tokenizer, false, ident_len);
-                            } else if(str_are_strings_equal(tok, STR8_LIT("break"))) {
+                            } else if(str_match(tok, s("break"))) {
                                 make_token(tokenizer, TOKEN_KIND_BREAK);
-                            } else if(str_are_strings_equal(tok, STR8_LIT("union"))) {
+                            } else if(str_match(tok, s("union"))) {
                                 make_token(tokenizer, TOKEN_KIND_UNION);
-                            } else if(str_are_strings_equal(tok, STR8_LIT("while"))) {
+                            } else if(str_match(tok, s("while"))) {
                                 make_token(tokenizer, TOKEN_KIND_WHILE);
                             } else {
                                 make_ident(tokenizer, ident_start, ident_len);
                             }
                             break;
                         case 6:
-                            if(str_are_strings_equal(tok, STR8_LIT("struct"))) {
+                            if(str_match(tok, s("struct"))) {
                                 make_token(tokenizer, TOKEN_KIND_STRUCT);
-                            } else if(str_are_strings_equal(tok, STR8_LIT("return"))) {
+                            } else if(str_match(tok, s("return"))) {
                                 make_token(tokenizer, TOKEN_KIND_RETURN);
                             } else {
                                 make_ident(tokenizer, ident_start, ident_len);
                             }
                             break;
                         case 8:
-                            if(str_are_strings_equal(tok, STR8_LIT("continue"))) {
+                            if(str_match(tok, s("continue"))) {
                                 make_token(tokenizer, TOKEN_KIND_CONTINUE);
                             } else {
                                 make_ident(tokenizer, ident_start, ident_len);

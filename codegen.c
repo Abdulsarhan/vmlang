@@ -35,34 +35,28 @@ void generate_code(ast_node *root,
                 const u8 data[] = {0,0,0,0};
                 const u32 size_of_data = sizeof(data);
 
-
                 const u32 size_of_uninit_data = 0;
 
                 string8 kernel32_functions[] = {
-                                                   STR8_LIT("ExitProcess"),
-                                                   STR8_LIT("WriteConsoleA"),
-                                                   STR8_LIT("GetStdHandle"),
+                                                   s("ExitProcess"),
+                                                   s("WriteConsoleA"),
+                                                   s("GetStdHandle"),
                                                };
 
                 import imports[] = {
                                        {
-                                        .dll_name = STR8_LIT("Kernel32.dll"),
+                                        .dll_name = s("Kernel32.dll"),
                                         .function_names = kernel32_functions,
                                         .function_count = array_count(kernel32_functions),
                                        },
                                    };
 
-                generate_pe_file(root,
-                                 output_path,
-                                 text,
-                                 size_of_text,
-                                 data,
-                                 size_of_data,
-                                 rodata,
-                                 size_of_rodata,
+                generate_pe_file(root, output_path,
+                                 text, size_of_text,
+                                 data, size_of_data,
+                                 rodata, size_of_rodata,
                                  size_of_uninit_data,
-                                 imports,
-                                 array_count(imports));
+                                 imports, array_count(imports));
             }
         } break;
         case tt_arm64_pc_windows:
@@ -91,15 +85,9 @@ void generate_code(ast_node *root,
 
 
               const u32 size_of_uninit_data = 0;
-              generate_elf_file(root,
-                                output_path,
-                                text,
-                                size_of_text,
-                                data,
-                                size_of_data,
-                                rodata,
-                                size_of_rodata,
-                                size_of_uninit_data);
+              generate_elf_file(root, output_path, text,
+                                size_of_text, data, size_of_data,
+                                rodata, size_of_rodata, size_of_uninit_data);
         }break;
     }
 }
