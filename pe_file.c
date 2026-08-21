@@ -714,22 +714,25 @@ section_list get_section_infos(mem_arena *arena, const u8 *text, u32 size_of_tex
     section_info *infos = arena_push(arena, sizeof(section_info) * num_sections, alignof(section_info), 1);
     u32 idx = 0;
 
-    assert(size_of_text !=0);
     if(size_of_text) {
         infos[idx] = get_first_section_info(s(".text"), section_align, file_align, text, size_of_text, raw_headers_size);
         idx++;
     }
+
     if(size_of_rodata) {
         infos[idx] = get_next_section_info(s(".rodata"), section_align, file_align, rodata, size_of_rodata, &infos[idx - 1]);
         idx++;
     }
+
     if(size_of_data) {
         infos[idx] = get_next_section_info(s(".data"), section_align, file_align, data, size_of_data, &infos[idx - 1]);
         idx++;
     }
+
     if(size_of_bss) {
         assert(0); // still not sure what to do about BSS.
     }
+
     if(import_count) {
         exe_writer idata_section_writer = writer_init(arena, mebibytes(10));
         const u32 idata_rva = get_next_section_rva(section_align, &infos[idx - 1]);
@@ -816,7 +819,7 @@ void generate_pe_file(ast_node *root, string8 output_path, const u8 *text,
     const pe_object_kind kind = pe_object_kind_exe;
     const u32 section_align = 4096;
     const u32 file_align = 512;
-    const b32 is_gui = true;
+    const b32 is_gui = false;
     const b32 has_debug_info = false;
     mem_arena *arena = arena_init(gibibytes(1));
 
@@ -874,6 +877,16 @@ void generate_pe_file(ast_node *root, string8 output_path, const u8 *text,
 
     for(u32 i = 0; i < sec_list.num_sections; i++) {
         section_info *info = &sec_list.infos[i];
+
+        // Zero-fill any gap between where the writer currently is and where
+        // this section's header says its raw data lives on disk. Without this,
+        // section bytes get packed right after the headers while the section
+        // headers point at later (empty) file offsets.
+        assert(pe_writer.at <= info->offset_on_disk);
+        u32 gap = info->offset_on_disk - (u32)pe_writer.at;
+        memset(&pe_writer.buffer[pe_writer.at], 0, gap);
+        pe_writer.at += gap;
+
         write_bytes(&pe_writer, info->section_data, info->size_of_raw_data);
         write_section_padding_bytes(&pe_writer, info);
     }
