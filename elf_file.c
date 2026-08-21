@@ -124,7 +124,7 @@ void write_elf_header_32(exe_writer *writer, u32 absolute_addr_of_entry_point,
     header.e_version = 1;
     header.e_osabi = osabi_sysv;
     header.e_abiver = 0;
-    memset(&header.e_pad, 0, sizeof(header.e_pad));
+    memory_set(&header.e_pad, 0, sizeof(header.e_pad));
     header.e_type = elf_type_exec;
     header.e_machine = machine_x86;
     header.e_version2 = 1;
@@ -151,7 +151,7 @@ void write_elf_header_64(exe_writer *writer, u64 absolute_addr_of_entry_point,
     header.e_version = 1;
     header.e_osabi = osabi_sysv;
     header.e_abiver = 0;
-    memset(&header.e_pad, 0, sizeof(header.e_pad));
+    memory_set(&header.e_pad, 0, sizeof(header.e_pad));
     header.e_type = elf_type_exec;
     header.e_machine = machine_x64;
     header.e_version = 1;

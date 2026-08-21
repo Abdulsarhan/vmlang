@@ -598,7 +598,7 @@ void write_hint_name_table_entry(exe_writer *writer, string8 function_name) {
     }
 }
 
-void write_ilt_or_iat_entry(exe_writer *writer, pe_format format, u32 hint_name_table_rva) {
+void write_ilt_or_iat_entry_ordinal(exe_writer *writer, pe_format format, u32 hint_name_table_rva) {
     write_bits(writer, (u8*)&hint_name_table_rva, 31);
 
     u32 zeroes = 0;
@@ -610,13 +610,25 @@ void write_ilt_or_iat_entry(exe_writer *writer, pe_format format, u32 hint_name_
     write_bits(writer, &ordinal_flag, 1);
 }
 
+void write_ilt_or_iat_entry(exe_writer *writer, pe_format format, u32 hint_name_table_rva) {
+    // Format for pe32+ is: 31 bits for hint_name_table_rva, 32 bits of zero padding, and 1 bit for the ordinal flag.
+    // For pe32, the format is: 31 bits for hint_name_table_rva, and 1 bit for the ordinal flag.
+    // because we want to import by name, the ordinal flag is zero, which means that we can get away with writing this field as if it was just one value.
+
+    if(format == pe_format_pe32_plus) {
+        write_u64(writer, hint_name_table_rva);
+    } else {
+        write_u32(writer, hint_name_table_rva);
+    }
+}
+
 u32 get_ilt_or_iat_entry_size(pe_format format) {
     if(format == pe_format_pe32_plus) {
         return 8;
     } else if(format == pe_format_pe32) {
         return 4;
     }
-    assert(0); // unreachable code
+    unreachable;
 }
 
 u32 get_hint_name_table_entry_size(string8 function_name) {
@@ -832,6 +844,7 @@ section_list get_section_infos(mem_arena *arena, const u8 *text, u32 size_of_tex
                            .import_dir_rva = import_dir_rva, .import_dir_size = import_dir_size,
                            .iat_rva = iat_rva, .iat_size = iat_size};
 }
+
 section_info *get_section_info(section_list *list, string8 section_name) {
     for(u32 i = 0; i < list->num_sections; i++) {
         section_info *info = &list->infos[i];
