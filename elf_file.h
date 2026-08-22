@@ -3,15 +3,8 @@
 
 #include "ds.h"
 #include "parser.h"
+#include "codegen.h"
 
-void generate_elf_file(ast_node *root,
-                       string8 output_path,
-                       const u8 *text,
-                       u32 size_of_text,
-                       const u8 *data,
-                       u32 size_of_data,
-                       const u8 *rodata,
-                       u32 size_of_rodata,
-                       u32 size_of_bss);
+void generate_elf_file(ast_node *root, string8 output_path, generated_code *code);
 
 #endif //ELF_FILE_H

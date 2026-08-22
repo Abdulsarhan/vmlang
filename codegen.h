@@ -21,6 +21,32 @@ typedef enum output_format {
     output_format_elf,
 }output_format;
 
+typedef struct import import;
+struct import {
+    string8 dll_name;
+    string8 *function_names;
+    u32 function_count;
+};
+
+typedef struct generated_code generated_code;
+struct generated_code {
+    u8 *text;
+    u32 size_of_text;
+
+    u8 *data;
+    u32 size_of_data;
+
+    u8 *rodata;
+    u32 size_of_rodata;
+
+    u32 size_of_bss;
+
+    import *imports;
+    u32 import_count;
+
+    u32 num_sections;
+};
+
 void generate_code(ast_node *root, string8 output_path, compilation_target target, output_format format);
 
 #endif //CODEGEN_H

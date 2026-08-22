@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
     tokenizer tokenizer = {0};
     tokenizer.at = file;
     tokenizer.end = file + file_size;
-    tokenizer.tokens = ARENA_PUSH_ARRAY(arena, token, 16384);
+    tokenizer.tokens = arena_push_array(arena, token, 16384);
     tokenizer.token_count = 0;
     tokenizer.current_line_number = 1;
     tokenizer.current_column_number = 0;
@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
 
     ast tree = {0};
     memory_zero(&tree, sizeof(ast));
-    tree.nodes = ARENA_PUSH_ARRAY(arena, ast_node, 16384);
+    tree.nodes = arena_push_array(arena, ast_node, 16384);
     tree.file_name = stream.file_name;
 
     ast_node *root = parse_file(&tree, &stream);

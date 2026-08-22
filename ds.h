@@ -428,12 +428,12 @@
 #define memory_set(dst, byte, size)    memset((dst), (byte), (size))
 #define memory_compare(a, b, size)     memcmp((a), (b), (size))
 
-#define memory_copy_struct(dest,src)  memory_copy((dest),(src),sizeof(*(dest)))
-#define memory_copy_array(dest,src)   memory_copy((dest),(src),sizeof(dest))
-#define memory_copy_typed(dest,src,c) memory_copy((dest),(src),sizeof(*(dest))*(c))
-#define memory_copy_str8(dest, src) memory_copy(dest, (src).data, (src).length)
+#define memory_copy_struct(d,s)  memory_copy((d),(s),sizeof(*(d)))
+#define memory_copy_array(d,s)   memory_copy((d),(s),sizeof(d))
+#define memory_copy_typed(d,s,c) memory_copy((d),(s),sizeof(*(d))*(c))
+#define memory_copy_str8(dst, s) memory_copy(dst, (s).data, (s).length)
 
-#define memory_zero(ptr, siz)        memset((ptr),0,(siz))
+#define memory_zero(s,z)        memset((s),0,(z))
 #define memory_zero_struct(s)   memory_zero((s),sizeof(*(s)))
 #define memory_zero_array(a)    memory_zero((a),sizeof(a))
 #define memory_zero_typed(m,c)  memory_zero((m),sizeof(*(m))*(c))
@@ -470,7 +470,7 @@
 
 /* : misc helper macros */
 
-#define BIT(x) (1 << x)
+#define bit(x) (1 << x)
 #define stringify_(s) #s
 #define stringify(s) stringify_(s)
 
@@ -484,13 +484,14 @@
 #define swap(T,a,b) do{T t__ = a; a = b; b = t__;}while(0)
 
 /* Arena things */
-#define ARENA_PUSH_ARRAY_ALIGN(arena, T, n, align) (T *)arena_push(arena, sizeof(T) * n, align, 1)
-#define ARENA_PUSH_ARRAY_ALIGN_NO_ZERO(arena, T, n, align) (T *)arena_push(arena, sizeof(T) * n, align, 0)
-#define ARENA_PUSH_ARRAY(arena, T, n) ARENA_PUSH_ARRAY_ALIGN(arena, T, n, alignof(T))
-#define ARENA_PUSH_ARRAY_NO_ZERO(arena, T, n) ARENA_PUSH_ARRAY_ALIGN_NO_ZERO(arena, T, n, alignof(T))
+#define arena_push_array_align(arena, T, n, align) (T *)arena_push(arena, sizeof(T) * n, align, 1)
+#define arena_push_array_align_no_zero(arena, T, n, align) (T *)arena_push(arena, sizeof(T) * n, align, 0)
+#define arena_push_array(arena, T, n) arena_push_array_align(arena, T, n, alignof(T))
+#define arena_push_array_no_zero(arena, T, n) arena_push_array_align_no_zero(arena, T, n, alignof(T))
 
 /* strings */
 #define s(x) (string8){.data = (u8*)x, .length = sizeof(x) - 1}
+#define sf(arena, format, ...) str_format(arena, format, __VA_ARGS__)
 
 /* booleans */
 #define true 1
@@ -621,6 +622,8 @@ DSAPI string8 str_trim_from_left(string8 str);
 DSAPI string8 str_trim_from_both_sides(string8 str);
 DSAPI string8 str_postfix(string8 str, u64 length);
 DSAPI string8 str_prefix(string8 str, u64 length);
+DSAPI b32 str_starts_with(string8 str, string8 prefix);
+DSAPI b32 str_ends_with(string8 str, string8 postfix);
 
 /* string compares */
 DSAPI b32 str_match(string8 a, string8 b);
@@ -780,13 +783,10 @@ static T *da_arrgrowf_wrapper(T *a, size_t elemsize, size_t addlen, size_t min_c
 #define ds_free(c, p) free(p)
 #endif
 
-// This doesn't do anything if already aligned
-// 'a' must be a power of two for this to work.
-#define ALIGN_UP_POW2(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
+#define align_up_pow2(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
 
-// This aligns to the next boundary that is specified in 'a'
-// 'a' must be a power of two for this to work.
-#define ALIGN_UP_NEXT_POW2(x, a) (((x) + (a) - 1) & ~((a) - 1))
+#define align_up_next_pow2(x, a) (((x) + (a) - 1) & ~((a) - 1))
+
 #define ARENA_BASE_POS sizeof(mem_arena)
 
 #define hm_slot_states_internal(header) \
@@ -817,6 +817,18 @@ static void *ds_memset(void *buf, int value, size_t count) {
     return buf;
 }
 
+void *ds_memcpy(void *dest, const void *src, size_t n) {
+    unsigned char *d = dest;
+    const unsigned char *s = src;
+    size_t i = 0;
+
+    for (; i < n; i++) {
+        d[i] = s[i];
+    }
+
+    return dest;
+}
+
 static char *ds_strcpy(char *dst, const char *src) {
     char *start = dst;
     while ((*start++ = *src++)) {
@@ -835,13 +847,13 @@ DSAPI mem_arena *arena_init(size_t size) {
     SYSTEM_INFO sys_info;
     GetSystemInfo(&sys_info);
     size_t page_size = sys_info.dwPageSize;
-    size = ALIGN_UP_POW2(size, page_size);
+    size = align_up_pow2(size, page_size);
 
     mem_arena *arena = (mem_arena *)VirtualAlloc(NULL, size, MEM_RESERVE, PAGE_READWRITE);
     assert(arena && "Error: VirtualAlloc reserve failed!");
 
     size_t initial_commit = Max(page_size, ARENA_BASE_POS);
-    initial_commit = ALIGN_UP_POW2(initial_commit, page_size);
+    initial_commit = align_up_pow2(initial_commit, page_size);
 
     void *commit = VirtualAlloc(arena, initial_commit, MEM_COMMIT, PAGE_READWRITE);
     if (!commit) {
@@ -860,7 +872,7 @@ DSAPI mem_arena *arena_init(size_t size) {
 
 DSAPI void *arena_push(mem_arena *arena, size_t size, size_t alignment, b32 zero_out_the_memory) {
     size_t base = (size_t)arena + arena->pos;
-    uintptr_t aligned = ALIGN_UP_POW2(base, alignment);
+    uintptr_t aligned = align_up_pow2(base, alignment);
     size_t padding = aligned - base;
     size_t total_size = padding + size;
     size_t required = arena->pos + total_size;
@@ -868,7 +880,7 @@ DSAPI void *arena_push(mem_arena *arena, size_t size, size_t alignment, b32 zero
     assert(required < arena->reserved_size && "Error: Allocation exceeds arena reserved size!");
 
     if (required > arena->committed_size) {
-        size_t new_commit_end = ALIGN_UP_POW2(required, arena->page_size);
+        size_t new_commit_end = align_up_pow2(required, arena->page_size);
         size_t commit_amount = new_commit_end - arena->committed_size;
 
         void *result = VirtualAlloc((char *)arena + arena->committed_size, commit_amount, MEM_COMMIT, PAGE_READWRITE);
@@ -880,7 +892,7 @@ DSAPI void *arena_push(mem_arena *arena, size_t size, size_t alignment, b32 zero
     arena->pos += total_size;
 
     if (zero_out_the_memory) {
-        memory_zero((void *)aligned, total_size);
+        ds_memset((void *)aligned, 0, total_size);
     }
 
     return (void *)aligned;
@@ -927,7 +939,7 @@ DSAPI int arena_reset_region(const mem_arena *arena, void *region_start, size_t 
     uintptr_t region_addr = (uintptr_t)region_start;
 
     if (region_addr >= arena_start && region_addr + region_size <= arena_end) {
-        memory_zero(region_start, region_size);
+        ds_memset(region_start, 0, region_size);
         return 0;
     }
     return -1;
@@ -949,7 +961,7 @@ DSAPI mem_arena *arena_get_scratch() {
 
 DSAPI mem_arena *arena_init(size_t size) {
     size_t page_size = (size_t)sysconf(_SC_PAGESIZE);
-    size = ALIGN_UP_POW2(size, page_size);
+    size = align_up_pow2(size, page_size);
 
     mem_arena *arena = (mem_arena *)mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (arena == MAP_FAILED) {
@@ -967,7 +979,7 @@ DSAPI mem_arena *arena_init(size_t size) {
 
 DSAPI void *arena_push(mem_arena *arena, size_t size, size_t alignment, ds_bool zero_out_the_memory) {
     size_t base = (size_t)arena + arena->pos;
-    uintptr_t aligned = ALIGN_UP_POW2(base, alignment);
+    uintptr_t aligned = align_up_pow2(base, alignment);
     size_t padding = aligned - base;
     size_t total_size = padding + size;
     size_t required = arena->pos + total_size;
@@ -980,7 +992,7 @@ DSAPI void *arena_push(mem_arena *arena, size_t size, size_t alignment, ds_bool 
     arena->pos += total_size;
 
     if (zero_out_the_memory) {
-        memory_zero((void *)aligned, total_size);
+        ds_memset((void *)aligned, 0, total_size);
     }
 
     return (void *)aligned;
@@ -1023,7 +1035,7 @@ DSAPI int arena_reset_region(const mem_arena *arena, void *region_start, size_t 
     uintptr_t region_addr = (uintptr_t)region_start;
 
     if (region_addr >= arena_start && region_addr + region_size <= arena_end) {
-        memory_zero(region_start, region_size);
+        ds_memset(region_start, 0, region_size);
         return 0;
     }
     return -1;
@@ -1161,6 +1173,14 @@ DSAPI string8 str_prefix(string8 str, u64 length) {
   return str;
 }
 
+DSAPI b32 str_starts_with(string8 str, string8 prefix) {
+    return str_match(str_prefix(str, prefix.length), prefix);
+}
+
+DSAPI b32 str_ends_with(string8 str, string8 postfix) {
+    return str_match(str_postfix(str, postfix.length), postfix);
+}
+
 DSAPI b32 str_match(string8 a, string8 b) {
     if (a.length != b.length) {
         return false;
@@ -1188,7 +1208,7 @@ DSAPI string8 str_from_i32(mem_arena *arena, i32 value) {
     string8 str;
     str.data = (u8 *)arena_push(arena, length, 1, 0);
     str.length = length;
-    memory_copy(str.data, tmp, length);
+    ds_memcpy(str.data, tmp, length);
     return str;
 }
 
@@ -1199,7 +1219,7 @@ DSAPI string8 str_from_i64(mem_arena *arena, i64 value) {
     string8 str;
     str.data = (u8 *)arena_push(arena, length, 1, 0);
     str.length = length;
-    memory_copy(str.data, tmp, length);
+    ds_memcpy(str.data, tmp, length);
     return str;
 }
 
@@ -1210,7 +1230,7 @@ DSAPI string8 str_from_f32(mem_arena *arena, f32 value) {
     string8 str;
     str.data = (u8 *)arena_push(arena, length, 1, 0);
     str.length = length;
-    memory_copy(str.data, tmp, length);
+    ds_memcpy(str.data, tmp, length);
     return str;
 }
 
@@ -1221,7 +1241,7 @@ DSAPI string8 str_from_f64(mem_arena *arena, f64 value) {
     string8 str;
     str.data = (u8 *)arena_push(arena, length, 1, 0);
     str.length = length;
-    memory_copy(str.data, tmp, length);
+    ds_memcpy(str.data, tmp, length);
     return str;
 }
 
@@ -1300,7 +1320,7 @@ DSAPI f64 str_to_f64(string8 str) {
 
 DSAPI const char *str_to_cstr(mem_arena *arena, string8 str) {
     char *c_string = (char *)arena_push(arena, str.length + 1, 1, 1);
-    memory_copy(c_string, str.data, str.length);
+    ds_memcpy(c_string, str.data, str.length);
     c_string[str.length] = '\0';
     return c_string;
 }
@@ -1321,7 +1341,7 @@ DSAPI string8 str_format(mem_arena *arena, string8 fmt, ...) {
 
                 case 's': {
                     string8 s = va_arg(ap, string8);
-                    memory_copy((char *)arena + arena->pos, s.data, s.length);
+                    ds_memcpy((char *)arena + arena->pos, s.data, s.length);
                     arena->pos += s.length;
                 } break;
 
@@ -1329,7 +1349,7 @@ DSAPI string8 str_format(mem_arena *arena, string8 fmt, ...) {
                     int d = va_arg(ap, int);
                     u8 tmp[32];
                     int written = snprintf((char*)tmp, 32, "%d", d);
-                    memory_copy((char *)arena + arena->pos, tmp, written);
+                    ds_memcpy((char *)arena + arena->pos, tmp, written);
                     arena->pos += written;
                 } break;
 
@@ -1339,7 +1359,7 @@ DSAPI string8 str_format(mem_arena *arena, string8 fmt, ...) {
                         size_t zu = va_arg(ap, size_t);
                         char tmp[32];
                         int written = sprintf(tmp, "%zu", zu);
-                        memory_copy((char *)arena + arena->pos, tmp, written);
+                        ds_memcpy((char *)arena + arena->pos, tmp, written);
                         arena->pos += written;
                     }
                 } break;
@@ -1373,7 +1393,7 @@ DSAPI string_builder sb_create(mem_arena *arena) {
 
 DSAPI string8 sb_append(string_builder *sb, string8 str) {
     string8 out = {0};
-    u8 *string_to_append = ARENA_PUSH_ARRAY_ALIGN(sb->arena, u8, str.length, 1);
+    u8 *string_to_append = arena_push_array_align(sb->arena, u8, str.length, 1);
     memory_copy_str8(string_to_append, str);
     sb->length += str.length;
     if(!sb->base_pointer) {
@@ -1399,7 +1419,7 @@ DSAPI string8 sb_appendf(string_builder *sb, const char *fmt, ...) {
         return result;
     }
 
-    u8 *buf = ARENA_PUSH_ARRAY_ALIGN(sb->arena, u8, (size_t)needed, 1);
+    u8 *buf = arena_push_array_align(sb->arena, u8, (size_t)needed, 1);
 
     if (!sb->base_pointer) {
         sb->base_pointer = buf;
@@ -1724,7 +1744,7 @@ internal void hm_clear_impl(void *hm_ptr) {
     hm_header *header = (hm_header*)hm_ptr - 1;
     header->count = 0;
     u8 *slot_states = hm_slot_states_internal(header);
-    memory_set(slot_states, HM_SLOT_EMPTY, header->capacity * sizeof(*slot_states));
+    memset(slot_states, HM_SLOT_EMPTY, header->capacity * sizeof(*slot_states));
 }
 
 /* dynamic arrays */

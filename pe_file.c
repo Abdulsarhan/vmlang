@@ -1,3 +1,4 @@
+//TODO: Use pal.h for unix time. Don't rely on platform specific shit.
 #include <windows.h>
 
 #include "pe_file.h"
@@ -241,7 +242,7 @@ void write_dos_header(exe_writer *writer) {
     dos_header header;
     // NOTE: Most of the fields are typically set to 0, so we just do a memset
     // upfront instead of manually setting each field.
-    memset(&header, 0, sizeof(header));
+    memory_set(&header, 0, sizeof(header));
     header.e_magic = TWOCC("MZ");
     header.e_cblp = 0x80;
     header.e_cp = 0x1;
@@ -356,7 +357,7 @@ void write_standard_coff_fields_64(exe_writer *writer,
 }
 
 u32 pe_checksum(mem_arena *arena, const u8 *buffer, u32 file_size, u32 checksum_field_offset) {
-    u32 scratch_size = ALIGN_UP_NEXT_POW2(file_size, 2);
+    u32 scratch_size = align_up_next_pow2(file_size, 2);
     u16 *scratch = (u16*)arena_push(arena, scratch_size, 1, 1);
 
     memory_copy(scratch, buffer, file_size);
@@ -555,8 +556,8 @@ void write_image_section_header(exe_writer *writer, string8 section_name,
     write_u32(writer, virtual_address);
 
     // NOTE: I am not sure if this assumption is correct, let's comment it out for now.
-    // It is correct according to the docs, but will windows refuse to load my .exe?
-    //assert(size_of_raw_data % file_align == 0);
+    // It is correct according to the docs, but windows still loads the .exe and runs it just fine.
+    // assert(size_of_raw_data % file_align == 0);
     write_u32(writer, size_of_raw_data);
     write_u32(writer, pointer_to_raw_data);
 
@@ -681,10 +682,10 @@ section_info get_first_section_info(string8 section_name, u32 section_align,
                                     u32 size_of_raw_data, u32 raw_headers_size) {
     section_info info;
     info.section_name = section_name;
-    info.rva = ALIGN_UP_NEXT_POW2(raw_headers_size, section_align);
-    info.virtual_size = ALIGN_UP_NEXT_POW2(size_of_raw_data, section_align);
-    info.offset_on_disk = ALIGN_UP_NEXT_POW2(raw_headers_size, file_align);
-    info.size_on_disk = ALIGN_UP_NEXT_POW2(size_of_raw_data, file_align);
+    info.rva = align_up_next_pow2(raw_headers_size, section_align);
+    info.virtual_size = align_up_next_pow2(size_of_raw_data, section_align);
+    info.offset_on_disk = align_up_next_pow2(raw_headers_size, file_align);
+    info.size_on_disk = align_up_next_pow2(size_of_raw_data, file_align);
     info.section_data = section_data;
     info.size_of_raw_data = size_of_raw_data;
     return info;
@@ -698,17 +699,17 @@ section_info get_next_section_info(string8 section_name,
                                    section_info *prev_info) {
     section_info info;
     info.section_name = section_name;
-    info.rva = ALIGN_UP_NEXT_POW2(prev_info->rva + prev_info->virtual_size, section_align);
-    info.virtual_size = ALIGN_UP_NEXT_POW2(size_of_raw_data, section_align);
-    info.offset_on_disk = ALIGN_UP_NEXT_POW2(prev_info->offset_on_disk + prev_info->size_on_disk, file_align);
-    info.size_on_disk =  ALIGN_UP_NEXT_POW2(size_of_raw_data, file_align);
+    info.rva = align_up_next_pow2(prev_info->rva + prev_info->virtual_size, section_align);
+    info.virtual_size = align_up_next_pow2(size_of_raw_data, section_align);
+    info.offset_on_disk = align_up_next_pow2(prev_info->offset_on_disk + prev_info->size_on_disk, file_align);
+    info.size_on_disk =  align_up_next_pow2(size_of_raw_data, file_align);
     info.section_data = section_data;
     info.size_of_raw_data = size_of_raw_data;
     return info;
 }
 
 u32 get_next_section_rva(u32 section_align, section_info *prev_info) {
-    return ALIGN_UP_NEXT_POW2(prev_info->rva + prev_info->virtual_size, section_align);
+    return align_up_next_pow2(prev_info->rva + prev_info->virtual_size, section_align);
 }
 
 void write_section_padding_bytes(exe_writer *writer, const section_info *info) {
@@ -731,36 +732,28 @@ u32 get_raw_headers_size(pe_format format, u32 num_sections) {
     return 0x80 + 24 + optional_header_size + num_sections * 40;
 }
 
-section_list get_section_infos(mem_arena *arena, const u8 *text, u32 size_of_text,
-                               const u8 *data, u32 size_of_data, const u8 *rodata,
-                               u32 size_of_rodata, u32 size_of_bss, const import *imports,
-                               u32 import_count, u32 file_align, u32 section_align, pe_format format) {
+section_list pe_get_section_infos(mem_arena *arena, generated_code *code,
+                               u32 file_align, u32 section_align,
+                               pe_format format) {
 
-    u32 num_sections = (size_of_text != 0) + (size_of_rodata != 0)
-                      + (size_of_data != 0) + (size_of_bss != 0)
-                      + (import_count != 0);
+    u32 raw_headers_size = get_raw_headers_size(format, code->num_sections);
 
-    u32 raw_headers_size = get_raw_headers_size(format, num_sections);
-
-    section_info *infos = arena_push(arena, sizeof(section_info) * num_sections, alignof(section_info), 1);
+    section_info *infos = arena_push(arena, sizeof(section_info) * code->num_sections, alignof(section_info), 1);
     u32 idx = 0;
 
-    if(size_of_text) {
-        infos[idx] = get_first_section_info(s(".text"), section_align, file_align, text, size_of_text, raw_headers_size);
+    if(code->size_of_text) {
+        infos[idx] = get_first_section_info(s(".text"), section_align, file_align, code->text, code->size_of_text, raw_headers_size);
         idx++;
     }
-
-    if(size_of_rodata) {
-        infos[idx] = get_next_section_info(s(".rodata"), section_align, file_align, rodata, size_of_rodata, &infos[idx - 1]);
+    if(code->size_of_rodata) {
+        infos[idx] = get_next_section_info(s(".rodata"), section_align, file_align, code->rodata, code->size_of_rodata, &infos[idx - 1]);
         idx++;
     }
-
-    if(size_of_data) {
-        infos[idx] = get_next_section_info(s(".data"), section_align, file_align, data, size_of_data, &infos[idx - 1]);
+    if(code->size_of_data) {
+        infos[idx] = get_next_section_info(s(".data"), section_align, file_align, code->data, code->size_of_data, &infos[idx - 1]);
         idx++;
     }
-
-    if(size_of_bss) {
+    if(code->size_of_bss) {
         assert(0); // still not sure what to do about BSS.
     }
 
@@ -769,43 +762,43 @@ section_list get_section_infos(mem_arena *arena, const u8 *text, u32 size_of_tex
     u32 iat_rva = 0;
     u32 iat_size = 0;
 
-    if(import_count) {
+    if(code->import_count) {
         exe_writer idata_section_writer = writer_init(arena, mebibytes(10));
         const u32 idata_rva = get_next_section_rva(section_align, &infos[idx - 1]);
         const u32 entry_size = get_ilt_or_iat_entry_size(format);
 
-        u32 size_of_directory_table = (import_count + 1) * 0x14; // +1 for null descriptor
+        u32 size_of_directory_table = (code->import_count + 1) * 0x14; // +1 for null descriptor
 
         // The import descriptor table is the first thing in the section.
         import_dir_rva = idata_rva;
         import_dir_size = size_of_directory_table;
 
-        u32 *dll_name_offset = arena_push(arena, sizeof(u32) * import_count, alignof(u32), 1);
+        u32 *dll_name_offset = arena_push(arena, sizeof(u32) * code->import_count, alignof(u32), 1);
         u32 running = size_of_directory_table;
-        for(u32 i = 0; i < import_count; i++) {
+        for(u32 i = 0; i < code->import_count; i++) {
             dll_name_offset[i] = running;
-            running += imports[i].dll_name.length + 1;
+            running += code->imports[i].dll_name.length + 1;
         }
         u32 names_end = running;
         u32 padding = (8 - ((idata_rva + names_end) & 7)) & 7;
         u32 ilt_iat_start = names_end + padding;
 
-        u32 *ilt_offset = arena_push(arena, sizeof(u32) * import_count, alignof(u32), 1);
-        u32 *iat_offset = arena_push(arena, sizeof(u32) * import_count, alignof(u32), 1);
+        u32 *ilt_offset = arena_push(arena, sizeof(u32) * code->import_count, alignof(u32), 1);
+        u32 *iat_offset = arena_push(arena, sizeof(u32) * code->import_count, alignof(u32), 1);
         running = ilt_iat_start;
-        for(u32 i = 0; i < import_count; i++) {
+        for(u32 i = 0; i < code->import_count; i++) {
             ilt_offset[i] = running;
-            running += (imports[i].function_count + 1) * entry_size;
+            running += (code->imports[i].function_count + 1) * entry_size;
         }
         iat_rva = idata_rva + running;
-        for(u32 i = 0; i < import_count; i++) {
+        for(u32 i = 0; i < code->import_count; i++) {
             iat_offset[i] = running;
-            u32 table_size = (imports[i].function_count + 1) * entry_size;
+            u32 table_size = (code->imports[i].function_count + 1) * entry_size;
             running += table_size;
             iat_size += table_size;
         }
 
-        for(u32 i = 0; i < import_count; i++) {
+        for(u32 i = 0; i < code->import_count; i++) {
             write_import_dir_entry(&idata_section_writer,
                 idata_rva + ilt_offset[i],
                 0, 0,
@@ -814,8 +807,8 @@ section_list get_section_infos(mem_arena *arena, const u8 *text, u32 size_of_tex
         }
         write_import_dir_entry(&idata_section_writer, 0, 0, 0, 0, 0);
 
-        for(u32 i = 0; i < import_count; i++) {
-            write_bytes(&idata_section_writer, imports[i].dll_name.data, imports[i].dll_name.length);
+        for(u32 i = 0; i < code->import_count; i++) {
+            write_bytes(&idata_section_writer, code->imports[i].dll_name.data, code->imports[i].dll_name.length);
             write_u8(&idata_section_writer, 0);
         }
 
@@ -827,10 +820,10 @@ section_list get_section_infos(mem_arena *arena, const u8 *text, u32 size_of_tex
         assert(idata_section_writer.at == ilt_iat_start &&
                "idata layout drifted from the precomputed offsets -- descriptors now point at the wrong bytes");
 
-        write_ilt_and_iat(imports, import_count, &idata_section_writer, format, idata_rva);
+        write_ilt_and_iat(code->imports, code->import_count, &idata_section_writer, format, idata_rva);
 
-        for(u32 i = 0; i < import_count; i++) {
-            const import *dll = &imports[i];
+        for(u32 i = 0; i < code->import_count; i++) {
+            const import *dll = &code->imports[i];
             for (u32 j = 0; j < dll->function_count; j++) {
                 write_hint_name_table_entry(&idata_section_writer, dll->function_names[j]);
             }
@@ -840,7 +833,7 @@ section_list get_section_infos(mem_arena *arena, const u8 *text, u32 size_of_tex
         idx++;
     }
 
-    return (section_list) {.infos = infos, .num_sections = num_sections,
+    return (section_list) {.infos = infos, .num_sections = code->num_sections,
                            .import_dir_rva = import_dir_rva, .import_dir_size = import_dir_size,
                            .iat_rva = iat_rva, .iat_size = iat_size};
 }
@@ -852,14 +845,11 @@ section_info *get_section_info(section_list *list, string8 section_name) {
             return info;
         }
     }
+    assert(0);
     return NULL;
 }
 
-void generate_pe_file(ast_node *root, string8 output_path, const u8 *text,
-                      u32 size_of_text, const u8 *data, u32 size_of_data,
-                      const u8 *rodata, u32 size_of_rodata, u32 size_of_bss,
-                      const import *imports, u32 import_count) {
-    (void)root;
+void generate_pe_file(mem_arena *arena, string8 output_path, generated_code *code) {
 
     const u64 image_base = 0x140000000;
     const pe_format format = pe_format_pe32_plus;
@@ -868,13 +858,8 @@ void generate_pe_file(ast_node *root, string8 output_path, const u8 *text,
     const u32 file_align = 512;
     const b32 is_gui = false;
     const b32 has_debug_info = false;
-    mem_arena *arena = arena_init(gibibytes(1));
 
-    section_list sec_list = get_section_infos(arena, text, size_of_text,
-                                              data, size_of_data, rodata,
-                                              size_of_rodata, size_of_bss,
-                                              imports, import_count, file_align,
-                                              section_align, format);
+    section_list sec_list = pe_get_section_infos(arena, code, file_align, section_align, format);
     // idata
     exe_writer pe_writer = writer_init(arena, mebibytes(10));
 
@@ -883,8 +868,8 @@ void generate_pe_file(ast_node *root, string8 output_path, const u8 *text,
 
     write_coff_header(&pe_writer, format, kind, has_debug_info, sec_list.num_sections);
 
-    u32 size_of_init_data = size_of_data + size_of_rodata;
-    u32 size_of_uninit_data = size_of_bss;
+    u32 size_of_init_data = code->size_of_data + code->size_of_rodata;
+    u32 size_of_uninit_data = code->size_of_bss;
     section_info *text_info = get_section_info(&sec_list, s(".text"));
     section_info *data_info = get_section_info(&sec_list, s(".data"));
     section_info *rodata_info = get_section_info(&sec_list, s(".rodata"));
@@ -895,15 +880,15 @@ void generate_pe_file(ast_node *root, string8 output_path, const u8 *text,
     // text section, the entry point has to be the first thing in the text
     // section.
     if(format == pe_format_pe32_plus) {
-        write_standard_coff_fields_64(&pe_writer, size_of_text, size_of_init_data, size_of_uninit_data,
+        write_standard_coff_fields_64(&pe_writer, code->size_of_text, size_of_init_data, size_of_uninit_data,
                                        text_info->rva, text_info->rva);
     } else if (format == pe_format_pe32) {
-        write_standard_coff_fields_32(&pe_writer, size_of_text, size_of_init_data, size_of_uninit_data,
+        write_standard_coff_fields_32(&pe_writer, code->size_of_text, size_of_init_data, size_of_uninit_data,
                                        text_info->rva, text_info->rva, data_info->rva);
     }
 
     u32 raw_headers_size = get_raw_headers_size(format, sec_list.num_sections);
-    u32 size_of_headers = ALIGN_UP_NEXT_POW2(raw_headers_size, file_align);
+    u32 size_of_headers = align_up_next_pow2(raw_headers_size, file_align);
     // size of image after it's been mapped into memory.
     u32 virtual_size_of_sections = text_info->virtual_size + rodata_info->virtual_size + data_info->virtual_size + idata_info->virtual_size;
     u32 size_of_image = size_of_headers + virtual_size_of_sections;
@@ -940,6 +925,13 @@ void generate_pe_file(ast_node *root, string8 output_path, const u8 *text,
 
         write_bytes(&pe_writer, info->section_data, info->size_of_raw_data);
         write_section_padding_bytes(&pe_writer, info);
+    }
+
+
+    if(!str_ends_with(output_path, s(".exe"))) {
+        string_builder exe_path_builder = sb_create(arena);
+        sb_append(&exe_path_builder, output_path);
+        output_path = sb_append(&exe_path_builder, s(".exe"));
     }
 
     pal_write_file(pe_writer.buffer, pe_writer.at, str_to_cstr(arena, output_path));

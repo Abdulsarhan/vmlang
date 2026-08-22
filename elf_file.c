@@ -1,5 +1,6 @@
 #include "elf_file.h"
 #include "writer.h"
+#include "pal.h"
 
 #define osabi_sysv 0x0
 
@@ -168,11 +169,7 @@ void write_elf_header_64(exe_writer *writer, u64 absolute_addr_of_entry_point,
     write_bytes(writer, (const u8*)&header, sizeof(elf_header_64));
 }
 
-void generate_elf_file(ast_node *root, string8 output_path,
-                       const u8 *text, u32 size_of_text,
-                       const u8 *data, u32 size_of_data,
-                       const u8 *rodata, u32 size_of_rodata,
-                       u32 size_of_bss) {
+void generate_elf_file(ast_node *root, string8 output_path, generated_code *code) {
     (void)root;
 
     elf_type type = elf_type_64;
@@ -187,4 +184,6 @@ void generate_elf_file(ast_node *root, string8 output_path,
         write_elf_header_32(&elf_writer);
     }
 #endif
+
+    pal_write_file(elf_writer.buffer, elf_writer.at, str_to_cstr(arena, output_path));
 }
