@@ -285,12 +285,12 @@ struct ast {
     u8 *file_name;
 };
 
-ast_node *parse_file(ast *ast, token_stream *tok_stream);
-ast_node *parse_infix_and_postfix(ast *ast, token_stream *tok_stream, i32 info, ast_node *left);
-ast_node *parse_expression(ast *ast, token_stream *tok_stream, int min_prec);
-ast_node *parse_statement(ast *ast, token_stream *tok_stream);
-ast_node *parse_else_or_else_if(ast *ast, token_stream *tok_stream);
-ast_node *parse_if(ast *ast, token_stream *tok_stream);
+ast_node *parse_file(ast *ast, tokenizer *tokenizer);
+ast_node *parse_infix_and_postfix(ast *ast, tokenizer *tokenizer, i32 info, ast_node *left);
+ast_node *parse_expression(ast *ast, tokenizer *tokenizer, int min_prec);
+ast_node *parse_statement(ast *ast, tokenizer *tokenizer);
+ast_node *parse_else_or_else_if(ast *ast, tokenizer *tokenizer);
+ast_node *parse_if(ast *ast, tokenizer *tokenizer);
 
 void report_parse_error(ast *ast, const ast_node *node, const char *fmt, ...);
 

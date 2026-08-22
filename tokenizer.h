@@ -2,6 +2,7 @@
 #define TOKENIZER_H
 
 #include "ds.h"
+#define token_buf_size 512
 
 typedef enum token_kind {
     TOKEN_KIND_IDENTIFIER = 256,
@@ -80,8 +81,9 @@ typedef struct tokenizer tokenizer;
 struct tokenizer {
     u8 *at;
     u8 *end;
-    token *tokens;
+    token token_buffer[token_buf_size];
     size_t token_count;
+    u64 current_token; // the token that the parser is currently looking at.
 
     u64 current_line_number;
     u64 current_column_number;
@@ -90,13 +92,7 @@ struct tokenizer {
     u32 error_count;
 };
 
-typedef struct token_stream token_stream;
-struct token_stream {
-    token *at;
-    u8 *file_name;
-};
-
-token_stream tokenize(tokenizer *tokenizer);
+void tokenize(tokenizer *tokenizer);
 string8 token_to_string(mem_arena *arena, token tok);
 string8 token_kind_to_string(token_kind kind);
 void tok_report_error(tokenizer *tokenizer, const char *fmt, ...);

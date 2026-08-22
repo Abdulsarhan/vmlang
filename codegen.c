@@ -1,7 +1,13 @@
 #include "codegen.h"
 
+// backends
+#include "vir.h"
 #include "pe_file.h"
 #include "elf_file.h"
+
+#include "vir.c"
+#include "pe_file.c"
+#include "elf_file.c"
 
 global u8 text[] = { 0x48, 0x83, 0xEC, 0x28,                                  // sub rsp, 0x28
                      0xB9, 0xF5, 0xFF, 0xFF, 0xFF,                            // mov ecx, -11
@@ -28,7 +34,7 @@ global import imports[] = {
                                .function_count = array_count(kernel32_functions),
                               },
                           };
-generated_code generate_code_for_x64_pc_windows(ast_node *root, mem_arena *arena) {
+generated_code generate_code_for_x64_pc_windows_from_vir(mem_arena *arena) {
     generated_code code;
     code.text = text;
     code.size_of_text = sizeof(text);
@@ -43,7 +49,7 @@ generated_code generate_code_for_x64_pc_windows(ast_node *root, mem_arena *arena
     return code;
 }
 
-generated_code generate_code_for_x64_pc_linux(ast_node *root, mem_arena *arena) {
+generated_code generate_code_for_x64_pc_linux_from_vir(mem_arena *arena) {
     // TODO: Implement this function properly.
     generated_code code;
     code.text = 0;
@@ -65,6 +71,7 @@ void generate_code(ast_node *root,
                    output_format format) {
     mem_arena *arena = arena_init(gibibytes(8));
 
+    generate_vir(root);
     switch(target) {
         case tt_llvm_ir:
             break;
@@ -74,7 +81,7 @@ void generate_code(ast_node *root,
             break;
         case tt_x64_pc_windows: {
             if(format == output_format_pe) {
-                generated_code code = generate_code_for_x64_pc_windows(root, arena);
+                generated_code code = generate_code_for_x64_pc_windows_from_vir(arena);
                 generate_pe_file(arena, output_path, &code);
             }
         } break;
@@ -86,7 +93,7 @@ void generate_code(ast_node *root,
         } break;
         case tt_x64_pc_linux: {
             if(format == output_format_elf) {
-                generated_code code = generate_code_for_x64_pc_linux(root, arena);
+                generated_code code = generate_code_for_x64_pc_linux_from_vir(arena);
                 generate_elf_file(root, output_path, &code);
             }
         } break;

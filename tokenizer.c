@@ -198,7 +198,7 @@ void tok_report_error(tokenizer *tokenizer, const char *fmt, ...) {
 }
 
 void make_token(tokenizer *tokenizer, token_kind kind) {
-    token *tok = &tokenizer->tokens[tokenizer->token_count++];
+    token *tok = &tokenizer->token_buffer[tokenizer->token_count++];
     tok->kind = kind;
     // FIX: This is wrong. We should get the length of the token.
     // Maybe make a function that does that?
@@ -207,7 +207,7 @@ void make_token(tokenizer *tokenizer, token_kind kind) {
 }
 
 void make_char_token(tokenizer *tokenizer, u8 *char_start, i8 token_len, b32 error) {
-    token *tok = &tokenizer->tokens[tokenizer->token_count++];
+    token *tok = &tokenizer->token_buffer[tokenizer->token_count++];
     tok->kind = error ? TOKEN_KIND_ERROR : TOKEN_KIND_CHAR_LITERAL;
     if(token_len == 0) {
         tok->char_value = 0;
@@ -224,7 +224,7 @@ void make_char_token(tokenizer *tokenizer, u8 *char_start, i8 token_len, b32 err
 }
 
 void make_ident(tokenizer *tokenizer, u8 *ident_start, u64 token_len) {
-    token *tok = &tokenizer->tokens[tokenizer->token_count++];
+    token *tok = &tokenizer->token_buffer[tokenizer->token_count++];
     tok->kind = TOKEN_KIND_IDENTIFIER;
     tok->ident_string.data = ident_start;
     tok->ident_string.length = token_len;
@@ -232,7 +232,7 @@ void make_ident(tokenizer *tokenizer, u8 *ident_start, u64 token_len) {
 }
 
 void make_string_token(tokenizer *tokenizer, u8 *string_start, u64 token_len, b32 error) {
-    token *tok = &tokenizer->tokens[tokenizer->token_count++];
+    token *tok = &tokenizer->token_buffer[tokenizer->token_count++];
     tok->kind = error ? TOKEN_KIND_ERROR : TOKEN_KIND_STRING_LITERAL;
     tok->string_value.data = string_start;
     tok->string_value.length = token_len;
@@ -240,7 +240,7 @@ void make_string_token(tokenizer *tokenizer, u8 *string_start, u64 token_len, b3
 }
 
 void make_int_token(tokenizer *tokenizer, u8 *int_start, u64 token_len) {
-    token *tok = &tokenizer->tokens[tokenizer->token_count++];
+    token *tok = &tokenizer->token_buffer[tokenizer->token_count++];
     tok->kind = TOKEN_KIND_INT_LITERAL;
     string8 str = {.data = int_start, .length = token_len};
     tok->integer_value = str_to_i64(str);
@@ -248,7 +248,7 @@ void make_int_token(tokenizer *tokenizer, u8 *int_start, u64 token_len) {
 }
 
 void make_float_token(tokenizer *tokenizer, u8 *float_start, u64 token_len) {
-    token *tok = &tokenizer->tokens[tokenizer->token_count++];
+    token *tok = &tokenizer->token_buffer[tokenizer->token_count++];
     tok->kind = TOKEN_KIND_FLOAT_LITERAL;
     string8 str = {.data = float_start, .length = token_len};
     tok->float_value = str_to_f64(str);
@@ -256,14 +256,15 @@ void make_float_token(tokenizer *tokenizer, u8 *float_start, u64 token_len) {
 }
 
 void make_bool_token(tokenizer *tokenizer, b32 true_or_false, u64 token_len) {
-    token *tok = &tokenizer->tokens[tokenizer->token_count++];
+    token *tok = &tokenizer->token_buffer[tokenizer->token_count++];
     tok->kind = TOKEN_KIND_BOOL_LITERAL;
     tok->bool_value = true_or_false;
     set_line_and_column_number_on_token(tokenizer, tok, token_len);
 }
 
-token_stream tokenize(tokenizer *tokenizer) {
-    while(tokenizer->at < tokenizer->end) {
+void tokenize(tokenizer *tokenizer) {
+    u32 num_tokens_to_generate = token_buf_size - tokenizer->token_count;
+    while((tokenizer->at < tokenizer->end) && num_tokens_to_generate) {
         eat_all_whitespaces(tokenizer);
         switch(eat_char(tokenizer)) {
             case '\0':
@@ -590,10 +591,6 @@ token_stream tokenize(tokenizer *tokenizer) {
                 break;
             }
         }
+        num_tokens_to_generate--;
     }
-
-    token_stream stream = {0};
-    stream.at = tokenizer->tokens;
-    stream.file_name = tokenizer->file_path;
-    return stream;
 }

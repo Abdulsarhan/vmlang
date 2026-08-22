@@ -12,19 +12,15 @@
 #include "parser.h"
 #include "typer.h"
 #include "pretty_printing.h"
-#include "codegen.h"
 #include "writer.h"
-#include "pe_file.h"
-#include "elf_file.h"
+#include "codegen.h"
 
 #include "tokenizer.c"
 #include "parser.c"
 #include "typer.c"
 #include "pretty_printing.c"
-#include "codegen.c"
 #include "writer.c"
-#include "pe_file.c"
-#include "elf_file.c"
+#include "codegen.c"
 
 int main(int argc, char **argv) {
     if(argc < 2) {
@@ -38,10 +34,10 @@ int main(int argc, char **argv) {
     mem_arena *arena = arena_init(gibibytes(1));
     assert(arena);
 
-    tokenizer tokenizer = {0};
+    tokenizer tokenizer;
+    memory_zero(&tokenizer, sizeof(tokenizer));
     tokenizer.at = file;
     tokenizer.end = file + file_size;
-    tokenizer.tokens = arena_push_array(arena, token, 16384);
     tokenizer.token_count = 0;
     tokenizer.current_line_number = 1;
     tokenizer.current_column_number = 0;
@@ -49,15 +45,12 @@ int main(int argc, char **argv) {
     tokenizer.start_of_current_line = tokenizer.at;
     tokenizer.error_count = 0;
 
-    token_stream stream = tokenize(&tokenizer);
-    assert(stream.at);
-
-    ast tree = {0};
+    ast tree;
     memory_zero(&tree, sizeof(ast));
     tree.nodes = arena_push_array(arena, ast_node, 16384);
-    tree.file_name = stream.file_name;
+    tree.file_name = tokenizer.file_path;
 
-    ast_node *root = parse_file(&tree, &stream);
+    ast_node *root = parse_file(&tree, &tokenizer);
 
     typer tp;
     memset(&tp, 0, sizeof(typer));
