@@ -1,4 +1,5 @@
 #include "typer.h"
+#include "ds.h"
 
 /*
 Pass 1 — collection: walk the top-level declarations and register all names and
@@ -395,7 +396,7 @@ void typecheck_declaration_header(typer *tp, ast_node *decl) {
 
 void make_primitive_type(typer *tp, string8 name) {
     symbol sym;
-    memset(&sym, 0, sizeof(symbol));
+    memory_set(&sym, 0, sizeof(symbol));
     sym.name = name;
     sym.tp.kind = type_kind_type;
     scope_add_symbol(tp, sym);
@@ -421,7 +422,7 @@ void typechecker_prepass(typer *tp, ast_node *root) {
     make_primitive_type(tp, s("enum"));
     make_primitive_type(tp, s("union"));
 
-    for (int i = 0; i < da_len(root->file.declarations); i++) {
+    for (i32 i = 0; i < da_len(root->file.declarations); i++) {
         typecheck_declaration_header(tp, root->file.declarations[i]);
     }
 }
