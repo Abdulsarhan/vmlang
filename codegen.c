@@ -1,11 +1,11 @@
 #include "codegen.h"
 
 // backends
-#include "vir.h"
+#include "sea_of_nodes.h"
 #include "pe_file.h"
 #include "elf_file.h"
 
-#include "vir.c"
+#include "sea_of_nodes.c"
 #include "pe_file.c"
 #include "elf_file.c"
 
@@ -34,7 +34,7 @@ global import imports[] = {
                                .function_count = array_count(kernel32_functions),
                               },
                           };
-generated_code generate_code_for_x64_pc_windows_from_vir(mem_arena *arena) {
+generated_code generate_code_for_x64_pc_windows_from_sea_of_nodes(mem_arena *arena) {
     generated_code code;
     code.text = text;
     code.size_of_text = sizeof(text);
@@ -49,7 +49,7 @@ generated_code generate_code_for_x64_pc_windows_from_vir(mem_arena *arena) {
     return code;
 }
 
-generated_code generate_code_for_x64_pc_linux_from_vir(mem_arena *arena) {
+generated_code generate_code_for_x64_pc_linux_from_sea_of_nodes(mem_arena *arena) {
     // TODO: Implement this function properly.
     generated_code code;
     code.text = 0;
@@ -65,15 +65,19 @@ generated_code generate_code_for_x64_pc_linux_from_vir(mem_arena *arena) {
     return code;
 }
 
+// NOTE: Decoupling the codegen from writing out the specific executable
+// format was probably a good idea because now we can use the same code to
+// write out an executable file for different instruction set architectures.
+
 void generate_code(ast_node *root,
                    string8 output_path,
                    compilation_target target,
                    output_format format) {
     mem_arena *arena = arena_init(gibibytes(8));
 
-    generate_vir(root);
+    generate_sea_of_nodes(root);
     switch(target) {
-        case tt_llvm_ir:
+        case tt_sea_of_nodes:
             break;
         case tt_bytecode:
             break;
@@ -81,7 +85,7 @@ void generate_code(ast_node *root,
             break;
         case tt_x64_pc_windows: {
             if(format == output_format_pe) {
-                generated_code code = generate_code_for_x64_pc_windows_from_vir(arena);
+                generated_code code = generate_code_for_x64_pc_windows_from_sea_of_nodes(arena);
                 generate_pe_file(arena, output_path, &code);
             }
         } break;
@@ -93,7 +97,7 @@ void generate_code(ast_node *root,
         } break;
         case tt_x64_pc_linux: {
             if(format == output_format_elf) {
-                generated_code code = generate_code_for_x64_pc_linux_from_vir(arena);
+                generated_code code = generate_code_for_x64_pc_linux_from_sea_of_nodes(arena);
                 generate_elf_file(root, output_path, &code);
             }
         } break;

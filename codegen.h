@@ -4,7 +4,7 @@
 #include "parser.h"
 
 typedef enum compilation_target {
-    tt_llvm_ir,
+    tt_sea_of_nodes,
     tt_bytecode,
 
     tt_x86_pc_windows,

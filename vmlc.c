@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
     ast_node *root = parse_file(&tree, &tokenizer);
 
     typer tp;
-    memset(&tp, 0, sizeof(typer));
+    memory_zero(&tp, sizeof(typer));
     tp.file_name = tree.file_name;
     typecheck_file(&tp, root);
 

@@ -8,33 +8,30 @@ typedef enum operator_pos {
     POSTFIX,
 }operator_pos;
 
-token peek_token(tokenizer *tokenizer) {
-    if(tokenizer->token_count < 1) {
+void maybe_refil_token_buffer(tokenizer *tokenizer, u64 refil_if_token_count_is_lower_than_this_value) {
+    if(tokenizer->token_count < refil_if_token_count_is_lower_than_this_value) {
         tokenize(tokenizer);
+        tokenizer->current_token = 0;
     }
+}
+
+token peek_token(tokenizer *tokenizer) {
+    maybe_refil_token_buffer(tokenizer, 1);
     return tokenizer->token_buffer[tokenizer->current_token];
 }
 
 token peek_next_token(tokenizer *tokenizer) {
-    if(tokenizer->token_count < 2) {
-        tokenize(tokenizer);
-    }
-
+    maybe_refil_token_buffer(tokenizer, 2);
     return tokenizer->token_buffer[tokenizer->current_token + 1];
 }
 
 token eat_token(tokenizer *tokenizer) {
-    if(tokenizer->token_count < 1) {
-        tokenize(tokenizer);
-        tokenizer->current_token = 0;
-    }
-
+    maybe_refil_token_buffer(tokenizer, 1);
     token current_tok = tokenizer->token_buffer[tokenizer->current_token];
-    if(current_tok.kind != TOKEN_KIND_END_OF_STREAM) {
-        tokenizer->current_token++;
-        return current_tok;
-    }
-    printf("Error: %s(): Tried to eat past end of file\n", __func__);
+
+    tokenizer->current_token++;
+    tokenizer->token_count--;
+
     return current_tok;
 }
 
@@ -456,6 +453,9 @@ ast_node *parse_prefix(ast *ast, tokenizer *tokenizer) {
             return error_node(ast, tok, ERROR_KIND_LEX_ERROR);
             break;
         default:
+            mem_arena *scratch = arena_get_scratch();
+            string8 token_string = token_to_string(scratch, tok);
+            printf("unhandled token kind in %s(), %.*s", __func__, (int)token_string.length, token_string.data);
             return error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
             break;
     }
@@ -745,6 +745,9 @@ ast_node *parse_statement(ast *ast, tokenizer *tokenizer) {
             report_parse_error(ast, err_node, "statement cannot start with a literal.");
             return err_node;
             break;
+        default:
+            printf("unhandled token kind in %s()", __func__);
+            break;
     }
     return NULL;
 }
@@ -761,8 +764,7 @@ ast_node *parse_function_declaration(ast *ast, tokenizer *tokenizer, ast_node *i
     return function_declaration_node(ast, ident, params, block, return_type);
 }
 
-ast_node *parse_toplevel_statement(ast *ast, tokenizer *tokenizer) {
-    token tok = peek_token(tokenizer);
+ast_node *parse_toplevel_statement(ast *ast, tokenizer *tokenizer, token tok) {
     switch(tok.kind) {
         case TOKEN_KIND_IF: {
             ast_node *err_node = error_node(ast, tok, ERROR_KIND_PARSE_ERROR);
@@ -862,11 +864,19 @@ ast_node *parse_toplevel_statement(ast *ast, tokenizer *tokenizer) {
             report_parse_error(ast, err_node, "statement cannot start with a literal.");
             return err_node;
         } break;
+        default:
+            mem_arena *scratch = arena_get_scratch();
+            string8 token_string = token_to_string(scratch, tok);
+            printf("unhandled token kind in %s(): %.*s", __func__, (int)token_string.length, token_string.data);
+            break;
     }
     return NULL;
 }
 
 ast_node *parse_declaration(ast *ast, tokenizer *tokenizer) {
+    // NOTE: we eagerly eat tokens in this function to avoid doing too much lookahead.
+    // Which means passing some of the things that we eagerly consume into the functions
+    // that parse the thing that we want to parse.
     token ident_tok = {0};
     if(!(peek_token(tokenizer).kind == TOKEN_KIND_IDENTIFIER)) {
         ast_node *err_node = error_node(ast, ident_tok, ERROR_KIND_PARSE_ERROR);
@@ -901,9 +911,7 @@ ast_node *parse_declaration(ast *ast, tokenizer *tokenizer) {
             return err_node;
         }
     } else {
-        assert(0); // TODO: parse_toplevel_statement expects that the identifier has not been consumed yet.
-        // right now, we consume the idenfifier before calling parse_toplevel_statement();
-        return parse_toplevel_statement(ast, tokenizer);
+        return parse_toplevel_statement(ast, tokenizer, ident_tok);
     }
     return NULL;
 }
@@ -915,5 +923,10 @@ ast_node *parse_file(ast *ast, tokenizer *tokenizer) {
         ast_node *declaration = parse_declaration(ast, tokenizer);
         da_push(node->file.declarations, declaration);
     }
+
+    // we use the scratch arena for some things in the parser.
+    // this is a good point to reset it.
+    mem_arena *scratch = arena_get_scratch();
+    arena_clear(scratch);
     return node;
 }

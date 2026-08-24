@@ -1,7 +1,14 @@
-#include "vir.h"
+#include "sea_of_nodes.h"
 
 // vir is the name of our intermediate representation.
-void generate_vir(ast_node *root) {
+void emit_sea_of_nodes_block(ast_node *root) {
+
+}
+void emit_sea_of_nodes_if_statement(ast_node *root) {
+
+}
+
+void generate_sea_of_nodes(ast_node *root) {
     if(!root) {
         return;
     }
