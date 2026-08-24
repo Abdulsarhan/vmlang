@@ -25,6 +25,7 @@
 int main(int argc, char **argv) {
     if(argc < 2) {
         printf("Usage: %s [filename]", argv[0]);
+        return -1;
     }
 
     u64 file_size = 0;
@@ -44,6 +45,7 @@ int main(int argc, char **argv) {
     tokenizer.file_path = (u8*)argv[1];
     tokenizer.start_of_current_line = tokenizer.at;
     tokenizer.error_count = 0;
+    tokenizer.current_token = 0;
 
     ast tree;
     memory_zero(&tree, sizeof(ast));
