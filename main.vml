@@ -5,7 +5,7 @@ this is a multi-line comment
 // this is a comment
 
 thing :: struct {
-    a: i32;
+    a := 3;
 }
 
 main :: () -> i32 {

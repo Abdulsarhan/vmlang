@@ -246,11 +246,7 @@ struct ast_node_error {
 
 struct ast_node {
     node_kind kind;
-    i32 l0, c0;
-    i32 l1, c1;
-    // represents the start of the line, and the length
-    // of the line that the ast node came from.
-    u8 *start_of_line;
+    u32 token_idx;
 
     union {
         ast_node_file file;
@@ -290,9 +286,9 @@ ast_node *parse_infix_and_postfix(ast *ast, tokenizer *tokenizer, i32 info, ast_
 ast_node *parse_expression(ast *ast, tokenizer *tokenizer, int min_prec);
 ast_node *parse_statement(ast *ast, tokenizer *tokenizer);
 ast_node *parse_else_or_else_if(ast *ast, tokenizer *tokenizer);
-ast_node *parse_if(ast *ast, tokenizer *tokenizer);
+ast_node *parse_if(ast *ast, tokenizer *tokenizer, u32 token_idx);
 
-void report_parse_error(ast *ast, const ast_node *node, const char *fmt, ...);
+void report_parse_error(ast *ast, tokenizer *tokenizer, u32 token_idx, const char *fmt, ...);
 
 void print_line(const u8 *start_of_line);
 #endif /* PARSER_H */

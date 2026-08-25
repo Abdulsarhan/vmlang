@@ -162,29 +162,21 @@ string8 token_kind_to_string(token_kind kind) {
     return s("");
 }
 
-string8 token_to_string(mem_arena *arena, token tok) {
+string8 token_to_string(mem_arena *arena, tokenizer *tokenizer, token tok) {
     switch(tok.kind) {
-        case TOKEN_KIND_IDENTIFIER:              return tok.ident_string;
-        case TOKEN_KIND_INT_LITERAL:             return str_from_i64(arena, tok.integer_value);
-        case TOKEN_KIND_FLOAT_LITERAL:           return str_from_f64(arena, tok.float_value);
-        case TOKEN_KIND_CHAR_LITERAL:            return str_from_char(arena, tok.char_value);
-        case TOKEN_KIND_BOOL_LITERAL:            return tok.bool_value ? s("true") : s("false");
-        case TOKEN_KIND_STRING_LITERAL:          return tok.string_value;
+        case TOKEN_KIND_IDENTIFIER:              return get_ident_or_string_literal_from_token(tokenizer, tok);
+        case TOKEN_KIND_INT_LITERAL:             return (string8){.data = &tokenizer->file[tok.pos], .length = get_token_len(tokenizer, tok)};
+        case TOKEN_KIND_FLOAT_LITERAL:           return (string8){.data = &tokenizer->file[tok.pos], .length = get_token_len(tokenizer, tok)};
+        case TOKEN_KIND_CHAR_LITERAL:            return (string8){.data = &tokenizer->file[tok.pos], .length = get_token_len(tokenizer, tok)};
+        case TOKEN_KIND_BOOL_LITERAL:            return get_bool_value_from_token(tokenizer, tok) ? s("true") : s("false");
+        case TOKEN_KIND_STRING_LITERAL:          return get_ident_or_string_literal_from_token(tokenizer, tok);
         default:                                 return token_kind_to_string(tok.kind);
     }
     return s("");
 }
 
-void set_line_and_column_number_on_token(tokenizer *tokenizer, token *tok, u64 token_len) {
-    tok->c0 = tokenizer->current_column_number;
-    tok->c1 = tok->c0 + token_len;
-    tok->l0 = tokenizer->current_line_number;
-    tok->l1 = tokenizer->current_line_number; // this will be used when we get tokens that span multiple lines.
-    tok->start_of_line = tokenizer->start_of_current_line;
-}
-
 void tok_report_error(tokenizer *tokenizer, const char *fmt, ...) {
-    printf("%s:%llu:%llu ", tokenizer->file_path, tokenizer->current_line_number, tokenizer->current_column_number);
+    printf("%s:%d:%d ", tokenizer->file_path, tokenizer->current_line_number, tokenizer->current_column_number);
     printf("Error: ");
     va_list args;
     va_start(args, fmt);
@@ -197,74 +189,115 @@ void tok_report_error(tokenizer *tokenizer, const char *fmt, ...) {
     printf("\n");
 }
 
-void make_token(tokenizer *tokenizer, token_kind kind) {
-    token *tok = &tokenizer->token_buffer[tokenizer->token_count++];
+void make_token(tokenizer *tokenizer, u8 *at, token_kind kind) {
+    token *tok = &tokenizer->tokens[tokenizer->token_count++];
+    tok->pos = at - tokenizer->file;
     tok->kind = kind;
-    // FIX: This is wrong. We should get the length of the token.
-    // Maybe make a function that does that?
-    u64 wrong_length = 1;
-    set_line_and_column_number_on_token(tokenizer, tok, wrong_length);
 }
 
-void make_char_token(tokenizer *tokenizer, u8 *char_start, i8 token_len, b32 error) {
-    token *tok = &tokenizer->token_buffer[tokenizer->token_count++];
-    tok->kind = error ? TOKEN_KIND_ERROR : TOKEN_KIND_CHAR_LITERAL;
-    if(token_len == 0) {
-        tok->char_value = 0;
-    } else if(token_len == 1) {
-        tok->char_value = char_start[0];
-    } else if(token_len == 2) {
-        tok->char_value = parse_escape_char(tokenizer, char_start);
-        if(tok->char_value == 1) {
-            tok->kind = TOKEN_KIND_ERROR;
+u8 get_char_value_from_token(tokenizer *tokenizer, token tok) {
+    u32 token_len = get_token_len(tokenizer, tok);
+
+    u8 *char_start = &tokenizer->file[tok.pos + 1];
+
+    u8 char_value = 0;
+    if(token_len < 3) {
+        // Because malformed char literals are checked for
+        // in the tokenizer, this codepath will never be hit because
+        // malformed char literals have the token kind of TOKEN_KIND_ERROR
+        // which means that the parser will never call this function on the malformed
+        // char literal token.
+        unreachable;
+        char_value = 0;
+    } else if(token_len == 3) {
+        char_value = *char_start;
+    } else if(token_len == 4) {
+        char_value = parse_escape_char(tokenizer, char_start);
+        if(char_value == 1) {
+            //TODO: handle this error path.
+            assert(0);
         }
     }
-
-    set_line_and_column_number_on_token(tokenizer, tok, token_len);
+    return char_value;
 }
 
-void make_ident(tokenizer *tokenizer, u8 *ident_start, u64 token_len) {
-    token *tok = &tokenizer->token_buffer[tokenizer->token_count++];
-    tok->kind = TOKEN_KIND_IDENTIFIER;
-    tok->ident_string.data = ident_start;
-    tok->ident_string.length = token_len;
-    set_line_and_column_number_on_token(tokenizer, tok, token_len);
+i64 get_int_value_from_token(tokenizer *tokenizer, token tok) {
+    string8 str = {.data = &tokenizer->file[tok.pos], .length = get_token_len(tokenizer, tok)};
+    return str_to_i64(str);
 }
 
-void make_string_token(tokenizer *tokenizer, u8 *string_start, u64 token_len, b32 error) {
-    token *tok = &tokenizer->token_buffer[tokenizer->token_count++];
-    tok->kind = error ? TOKEN_KIND_ERROR : TOKEN_KIND_STRING_LITERAL;
-    tok->string_value.data = string_start;
-    tok->string_value.length = token_len;
-    set_line_and_column_number_on_token(tokenizer, tok, token_len);
+f64 get_float_value_from_token(tokenizer *tokenizer, token tok) {
+    string8 str = {.data = &tokenizer->file[tok.pos], .length = get_token_len(tokenizer, tok)};
+    return str_to_f64(str);
 }
 
-void make_int_token(tokenizer *tokenizer, u8 *int_start, u64 token_len) {
-    token *tok = &tokenizer->token_buffer[tokenizer->token_count++];
-    tok->kind = TOKEN_KIND_INT_LITERAL;
-    string8 str = {.data = int_start, .length = token_len};
-    tok->integer_value = str_to_i64(str);
-    set_line_and_column_number_on_token(tokenizer, tok, token_len);
+b32 get_bool_value_from_token(tokenizer *tokenizer, token tok) {
+    string8 str = {.data = &tokenizer->file[tok.pos], .length = get_token_len(tokenizer, tok)};
+    if(str_match(str, s("false"))) {
+        return true;
+    } else if(str_match(str, s("true"))) {
+        return false;
+    } else {
+        assert(0);
+    }
 }
 
-void make_float_token(tokenizer *tokenizer, u8 *float_start, u64 token_len) {
-    token *tok = &tokenizer->token_buffer[tokenizer->token_count++];
-    tok->kind = TOKEN_KIND_FLOAT_LITERAL;
-    string8 str = {.data = float_start, .length = token_len};
-    tok->float_value = str_to_f64(str);
-    set_line_and_column_number_on_token(tokenizer, tok, token_len);
+string8 get_ident_or_string_literal_from_token(tokenizer *tokenizer, token tok) {
+    string8 str = {.data = &tokenizer->file[tok.pos], .length = get_token_len(tokenizer, tok)};
+    return str;
+
 }
 
-void make_bool_token(tokenizer *tokenizer, b32 true_or_false, u64 token_len) {
-    token *tok = &tokenizer->token_buffer[tokenizer->token_count++];
-    tok->kind = TOKEN_KIND_BOOL_LITERAL;
-    tok->bool_value = true_or_false;
-    set_line_and_column_number_on_token(tokenizer, tok, token_len);
+typedef struct line line;
+struct line {
+    u32 line_number;
+    u8 *start_of_line;
+};
+
+line get_token_line_number(tokenizer *tokenizer, token tok) {
+    u8 *at = tokenizer->file;
+    u8 *token_pos = &tokenizer->file[tok.pos];
+
+    u32 current_line_number = 1;
+    while((at < tokenizer->end) && (at != token_pos)) {
+        if(*at == '\n') {
+            current_line_number++;
+        }
+        at++;
+    }
+    line l;
+    l.line_number = current_line_number;
+    l.start_of_line = at;
+    return l;
+}
+
+u32 get_token_len(tokenizer *tokenizer, token tok) {
+    u8 *token_pos = &tokenizer->file[tok.pos];
+    u8 *orig = token_pos;
+
+    while((token_pos < tokenizer->end) && !is_whitespace(*token_pos)) {
+        token_pos++;
+    }
+    if(tok.kind == TOKEN_KIND_CHAR_LITERAL || tok.kind == TOKEN_KIND_STRING_LITERAL) {
+        token_pos--; // to avoid including the closing quote in the length.
+    }
+    return token_pos - orig;
+}
+
+source_location get_source_location_from_token(tokenizer *tokenizer, u32 token_idx) {
+    source_location location;
+    token tok = tokenizer->tokens[token_idx];
+    line l = get_token_line_number(tokenizer, tok);
+    location.l0 = l.line_number;
+    location.l1 = l.line_number + get_token_len(tokenizer, tok);
+    location.c0 = tokenizer->current_column_number;
+    location.c1 = 0;
+    location.start_of_line = l.start_of_line;
+    return location;
 }
 
 void tokenize(tokenizer *tokenizer) {
-    u32 num_tokens_to_generate = token_buf_size - tokenizer->token_count;
-    while((tokenizer->at < tokenizer->end) && num_tokens_to_generate) {
+    while((tokenizer->at < tokenizer->end)) {
         eat_all_whitespaces(tokenizer);
         switch(eat_char(tokenizer)) {
             case '\0':
@@ -274,7 +307,7 @@ void tokenize(tokenizer *tokenizer) {
                 // guarunteed to return the sentinel instead of going
                 // past the end since peek_token() and friends do no bounds
                 // checking for performance reasons.
-                make_token(tokenizer, TOKEN_KIND_END_OF_STREAM);
+                make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_END_OF_STREAM);
                 break;
             case '(':
             case ')':
@@ -286,46 +319,44 @@ void tokenize(tokenizer *tokenizer) {
             case '~':
             case ';':
             case ',':
-                make_token(tokenizer, *(tokenizer->at - 1));
+                make_token(tokenizer, tokenizer->at - 1, *(tokenizer->at - 1));
                 break;
             case '\'': {
-                i8 literal_length = 0;
-                b32 error = 0;
-                u8 *char_start = tokenizer->at;
+                // this is where we detect malformed char literals.
+                // if a char literal is malformed, we make an error token.
+                b32 error = false;
+                u8 *checkpoint = tokenizer->at;
                 if(match(tokenizer, '\\')) {
                     if(is_printable(peek_char(tokenizer))) {
                         eat_char(tokenizer);
-                        if(match(tokenizer, '\'')) {
-                            literal_length = 2;
-                        } else {
+                        if(!match(tokenizer, '\'')) {
                             tok_report_error(tokenizer, "Error: missing closing quote to terminate char literal");
-                            error = 1;
+                            error = true;
                         }
                     }
                 } else if(is_printable(peek_char(tokenizer)) && peek_char(tokenizer) != '\'') {
                     eat_char(tokenizer);
-                    if(match(tokenizer, '\'')) {
-                        literal_length = 1;
-                    } else {
+                    if(!match(tokenizer, '\'')) {
                         tok_report_error(tokenizer, "Error: missing closing quote to terminate char literal");
-                        error = 1;
+                        error = true;
                     }
-                } else if(match(tokenizer, '\'')) {
-                    literal_length = 0;
                 } else {
                     tok_report_error(tokenizer, "Error: missing closing quote to terminate char literal");
-                    error = 1;
+                        error = true;
                 }
-                make_char_token(tokenizer, char_start, literal_length, error);
+                // char literal tokens start AFTER the first quote. We can bring back the quote
+                // to print this token if we need to, but as far as the parser and type checker
+                // are concerned, we don't need the quotes.
+                make_token(tokenizer, checkpoint, error ? TOKEN_KIND_ERROR : TOKEN_KIND_CHAR_LITERAL);
                 break;
             }
             case '"': /* TODO: Handle escaping inside of string literals */
+                // this is where we detect malformed string literals.
+                // if a string literal is malformed, we make an error token.
                 u8 *string_start = tokenizer->at;
-                u64 string_len = 0;
                 b32 error = false;
 
                 while(tokenizer->at < tokenizer->end && *tokenizer->at != '"') {
-                    string_len++;
                     eat_char(tokenizer);
                 }
                 if(tokenizer->at >= tokenizer->end) {
@@ -334,7 +365,10 @@ void tokenize(tokenizer *tokenizer) {
                 }
 
                 eat_char(tokenizer);
-                make_string_token(tokenizer, string_start, string_len, error);
+                // string literal tokens start AFTER the first quote. We can bring back the quote
+                // to print this token if we need to, but as far as the parser and type checker
+                // are concerned, we don't need the quotes.
+                make_token(tokenizer, string_start, error ? TOKEN_KIND_ERROR : TOKEN_KIND_STRING_LITERAL);
                 break;
             case '0':
             case '1':
@@ -365,102 +399,101 @@ void tokenize(tokenizer *tokenizer) {
                     }
                     eat_char(tokenizer);
                 }
-                u64 num_len = tokenizer->at - start;
                 if(is_float) {
-                    make_float_token(tokenizer, start, num_len);
+                    make_token(tokenizer, start, TOKEN_KIND_FLOAT_LITERAL);
                 } else {
-                    make_int_token(tokenizer, start, num_len);
+                    make_token(tokenizer, start, TOKEN_KIND_INT_LITERAL);
                 }
                 break;
             }
             case '>':
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, TOKEN_KIND_GREATER_THAN_EQUAL);
+                    make_token(tokenizer, tokenizer->at -1, TOKEN_KIND_GREATER_THAN_EQUAL);
                 } else if (match(tokenizer, '>')) {
                     if(match(tokenizer, '=')) {
-                        make_token(tokenizer, TOKEN_KIND_RIGHT_SHIFT_EQUAL);
+                        make_token(tokenizer, tokenizer->at -1, TOKEN_KIND_RIGHT_SHIFT_EQUAL);
                     } else {
-                        make_token(tokenizer, TOKEN_KIND_RIGHT_SHIFT);
+                        make_token(tokenizer, tokenizer->at -1, TOKEN_KIND_RIGHT_SHIFT);
                     }
                 } else {
-                    make_token(tokenizer, '>');
+                    make_token(tokenizer, tokenizer->at - 1, '>');
                 }
                 break;
             case '<':
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, TOKEN_KIND_LESS_THAN_EQUAL);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_LESS_THAN_EQUAL);
                 } else if (match(tokenizer, '<')) {
                     if(match(tokenizer, '=')) {
-                        make_token(tokenizer, TOKEN_KIND_LEFT_SHIFT_EQUAL);
+                        make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_LEFT_SHIFT_EQUAL);
                     } else {
-                        make_token(tokenizer, TOKEN_KIND_LEFT_SHIFT);
+                        make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_LEFT_SHIFT);
                     }
                 } else {
-                    make_token(tokenizer, '<');
+                    make_token(tokenizer, tokenizer->at - 1, '<');
                 }
                 break;
             case '!':
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, TOKEN_KIND_NOT_EQUAL);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_NOT_EQUAL);
                 } else {
-                    make_token(tokenizer, '!');
+                    make_token(tokenizer, tokenizer->at - 1, '!');
                 }
                 break;
             case '=':
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, TOKEN_KIND_EQUAL_EQUAL);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_EQUAL_EQUAL);
                 } else {
-                    make_token(tokenizer, '=');
+                    make_token(tokenizer, tokenizer->at - 1, '=');
                 }
                 break;
             case '|':
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, TOKEN_KIND_OR_EQUAL);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_OR_EQUAL);
                 } else if(match(tokenizer, '|')) {
-                    make_token(tokenizer, TOKEN_KIND_OR_OR);
+                    make_token(tokenizer, tokenizer->at -1, TOKEN_KIND_OR_OR);
                 } else {
-                    make_token(tokenizer, '|');
+                    make_token(tokenizer, tokenizer->at -1, '|');
                 }
                 break;
             case '^':
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, TOKEN_KIND_XOR_EQUAL);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_XOR_EQUAL);
                 } else {
-                    make_token(tokenizer, '^');
+                    make_token(tokenizer, tokenizer->at - 1, '^');
                 }
                 break;
             case '&':
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, TOKEN_KIND_AND_EQUAL);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_AND_EQUAL);
                 } else if(match(tokenizer, '&')) {
-                    make_token(tokenizer, TOKEN_KIND_AND_AND);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_AND_AND);
                 } else {
-                    make_token(tokenizer, '&');
+                    make_token(tokenizer, tokenizer->at - 1, '&');
                 }
                 break;
             case '+':
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, TOKEN_KIND_PLUS_EQUAL);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_PLUS_EQUAL);
                 } else if(match(tokenizer, '+')) {
-                    make_token(tokenizer, TOKEN_KIND_PLUS_PLUS);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_PLUS_PLUS);
                 } else {
-                    make_token(tokenizer, '+');
+                    make_token(tokenizer, tokenizer->at - 1, '+');
                 }
                 break;
             case '-':
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, TOKEN_KIND_MINUS_EQUAL);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_MINUS_EQUAL);
                 } else if(match(tokenizer, '>')) {
-                    make_token(tokenizer, TOKEN_KIND_RIGHT_ARROW);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_RIGHT_ARROW);
                 } else if(match(tokenizer, '-')) {
-                    make_token(tokenizer, TOKEN_KIND_MINUS_MINUS);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_MINUS_MINUS);
                 } else {
-                    make_token(tokenizer, '-');
+                    make_token(tokenizer, tokenizer->at - 1, '-');
                 }
                 break;
             case '/':
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, TOKEN_KIND_DIVIDE_EQUAL);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_DIVIDE_EQUAL);
                 } else if(match(tokenizer, '/')) {
                     while(1) {
                         u8 ch = eat_char(tokenizer);
@@ -480,37 +513,37 @@ void tokenize(tokenizer *tokenizer) {
                         }
                     }
                 } else {
-                    make_token(tokenizer, '/');
+                    make_token(tokenizer, tokenizer->at - 1, '/');
                 }
                 break;
             case '%':
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, TOKEN_KIND_MOD_EQUAL);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_MOD_EQUAL);
                 } else {
-                    make_token(tokenizer, '%');
+                    make_token(tokenizer, tokenizer->at - 1, '%');
                 }
                 break;
             case '*':
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, TOKEN_KIND_MULTIPLY_EQUAL);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_MULTIPLY_EQUAL);
                 } else {
-                    make_token(tokenizer, '*');
+                    make_token(tokenizer, tokenizer->at - 1, '*');
                 }
                 break;
             case ':':
                 if(match(tokenizer, ':')) {
-                    make_token(tokenizer, TOKEN_KIND_COLON_COLON);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_COLON_COLON);
                 } else if(match(tokenizer, '=')) {
-                    make_token(tokenizer, TOKEN_KIND_COLON_EQUAL);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_COLON_EQUAL);
                 } else {
-                    make_token(tokenizer, ':');
+                    make_token(tokenizer, tokenizer->at - 1, ':');
                 }
                 break;
             case '.':
                 if(match(tokenizer, '.')) {
-                    make_token(tokenizer, TOKEN_KIND_DOT_DOT);
+                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_DOT_DOT);
                 } else {
-                    make_token(tokenizer, '.');
+                    make_token(tokenizer, tokenizer->at - 1, '.');
                 }
                 break;
             default: {
@@ -529,60 +562,60 @@ void tokenize(tokenizer *tokenizer) {
                     switch(ident_len) {
                         case 2:
                             if(str_match(tok, s("if"))) {
-                                make_token(tokenizer, TOKEN_KIND_IF);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_IF);
                             } else {
-                                make_ident(tokenizer, ident_start, ident_len);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_IDENTIFIER);
                             }
                             break;
                         case 3:
                             if(str_match(tok, s("for"))) {
-                                make_token(tokenizer, TOKEN_KIND_FOR);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_FOR);
                             } else {
-                                make_ident(tokenizer, ident_start, ident_len);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_IDENTIFIER);
                             }
                             break;
                         case 4:
                             if(str_match(tok, s("else"))) {
-                                make_token(tokenizer, TOKEN_KIND_ELSE);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_ELSE);
                             } else if(str_match(tok, s("enum"))) {
-                                make_token(tokenizer, TOKEN_KIND_ENUM);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_ENUM);
                             } else if(str_match(tok, s("true"))) {
-                                make_bool_token(tokenizer, true, ident_len);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_BOOL_LITERAL);
                             } else {
-                                make_ident(tokenizer, ident_start, ident_len);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_IDENTIFIER);
                             }
                             break;
                         case 5:
                             if(str_match(tok, s("false"))) {
-                                make_bool_token(tokenizer, false, ident_len);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_BOOL_LITERAL);
                             } else if(str_match(tok, s("break"))) {
-                                make_token(tokenizer, TOKEN_KIND_BREAK);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_BREAK);
                             } else if(str_match(tok, s("union"))) {
-                                make_token(tokenizer, TOKEN_KIND_UNION);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_UNION);
                             } else if(str_match(tok, s("while"))) {
-                                make_token(tokenizer, TOKEN_KIND_WHILE);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_WHILE);
                             } else {
-                                make_ident(tokenizer, ident_start, ident_len);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_IDENTIFIER);
                             }
                             break;
                         case 6:
                             if(str_match(tok, s("struct"))) {
-                                make_token(tokenizer, TOKEN_KIND_STRUCT);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_STRUCT);
                             } else if(str_match(tok, s("return"))) {
-                                make_token(tokenizer, TOKEN_KIND_RETURN);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_RETURN);
                             } else {
-                                make_ident(tokenizer, ident_start, ident_len);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_IDENTIFIER);
                             }
                             break;
                         case 8:
                             if(str_match(tok, s("continue"))) {
-                                make_token(tokenizer, TOKEN_KIND_CONTINUE);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_CONTINUE);
                             } else {
-                                make_ident(tokenizer, ident_start, ident_len);
+                                make_token(tokenizer, ident_start, TOKEN_KIND_IDENTIFIER);
                             }
                             break;
                         default:
-                            make_ident(tokenizer, ident_start, ident_len);
+                            make_token(tokenizer, ident_start, TOKEN_KIND_IDENTIFIER);
                             break;
                     }
                 } else {
@@ -591,6 +624,5 @@ void tokenize(tokenizer *tokenizer) {
                 break;
             }
         }
-        num_tokens_to_generate--;
     }
 }

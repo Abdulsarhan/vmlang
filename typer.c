@@ -54,7 +54,7 @@ b32 is_literal(ast_node *node) {
     return false;
 }
 
-type_kind typecheck_operand(typer *tp, ast_node *operand) {
+type_kind typecheck_operand(typer *tp, tokenizer *tokenizer, ast_node *operand) {
     switch(operand->kind) {
         case NODE_KIND_INT_LIT:    return type_kind_i32;
         case NODE_KIND_FLOAT_LIT:  return type_kind_f32;
@@ -65,24 +65,24 @@ type_kind typecheck_operand(typer *tp, ast_node *operand) {
             string8 ident = operand->ident.name;
             symbol *sym = scope_lookup(tp, ident);
             if(!sym) {
-                typer_report_error(tp, operand, "Error: use of undeclared identifier %.*s", (int)ident.length, ident.data);
+                typer_report_error(tp, tokenizer, operand, "Error: use of undeclared identifier %.*s", (int)ident.length, ident.data);
                 return type_kind_none;
             }
             return sym->tp.kind;
         }
         case NODE_KIND_BINOP:
-            typecheck_expression(tp, operand);
+            typecheck_expression(tp, tokenizer, operand);
             return operand->binop.binexpr_type;
         default:
-            typer_report_error(tp, operand, "Unexpected node kind as operand");
+            typer_report_error(tp, tokenizer, operand, "Unexpected node kind as operand");
             return type_kind_none;
     }
 }
 
-void typecheck_expression(typer *tp, ast_node *expr) {
+void typecheck_expression(typer *tp, tokenizer *tokenizer, ast_node *expr) {
     switch(expr->kind) {
         case NODE_KIND_IDENT:
-            typer_report_error(tp, expr, "Error: found a freestanding identifier when we expected an expression.");
+            typer_report_error(tp, tokenizer, expr, "Error: found a freestanding identifier when we expected an expression.");
             break;
         case NODE_KIND_BINOP: {
             ast_node_binop *binop = &expr->binop;
@@ -101,13 +101,13 @@ void typecheck_expression(typer *tp, ast_node *expr) {
                             scope_add_symbol(tp, ident);
                         } else {
                             string8 ident = left->ident.name;
-                            typer_report_error(tp, expr, "Error: Expected a type after %.*s and ':'", (int)ident.length, ident.data);
+                            typer_report_error(tp, tokenizer, expr, "Error: Expected a type after %.*s and ':'", (int)ident.length, ident.data);
                         }
                     }
                 } break;
                 case BINOP_COLON_EQUAL: {
                     if(left->kind == NODE_KIND_IDENT) {
-                        type_kind inferred = typecheck_operand(tp, right);
+                        type_kind inferred = typecheck_operand(tp, tokenizer, right);
                         binop->binexpr_type = inferred;
  
                         symbol ident = {0};
@@ -116,12 +116,12 @@ void typecheck_expression(typer *tp, ast_node *expr) {
                         ident.name = left->ident.name;
                         scope_add_symbol(tp, ident);
                     } else {
-                        typer_report_error(tp, expr, "Error: Expected a variable before ':='");
+                        typer_report_error(tp, tokenizer, expr, "Error: Expected a variable before ':='");
                     }
                 } break;
                 default: {
-                    type_kind lt = typecheck_operand(tp, left);
-                    type_kind rt = typecheck_operand(tp, right);
+                    type_kind lt = typecheck_operand(tp, tokenizer, left);
+                    type_kind rt = typecheck_operand(tp, tokenizer, right);
                     binop->binexpr_type = (lt == type_kind_f32 || rt == type_kind_f32) ? type_kind_f32 : type_kind_i32;
                 } break;
             }
@@ -130,43 +130,44 @@ void typecheck_expression(typer *tp, ast_node *expr) {
             ast_node_function_call *call = &expr->function_call;
             string8 callee_name = expr->function_call.callee->ident.name;
             if(call->callee->kind != NODE_KIND_IDENT) {
-                typer_report_error(tp, expr, "Error: callee is not an identifier");
+                typer_report_error(tp, tokenizer, expr, "Error: callee is not an identifier");
                 break;
             }
             symbol *callee_sym = scope_lookup(tp, callee_name);
             if(!callee_sym) {
-                typer_report_error(tp, expr, "Error: call to undeclared function %.*s", (int)callee_name.length, callee_name.data);
+                typer_report_error(tp, tokenizer, expr, "Error: call to undeclared function %.*s", (int)callee_name.length, callee_name.data);
                 break;
             }
             if(callee_sym->tp.kind != type_kind_function) {
-                typer_report_error(tp, expr, "Error: %.*s is not callable", (int)callee_name.length, callee_name.data);
+                typer_report_error(tp, tokenizer, expr, "Error: %.*s is not callable", (int)callee_name.length, callee_name.data);
                 break;
             }
             int argc = da_len(call->params);
             int paramc = da_len(callee_sym->tp.param_types);
             if(argc != paramc) {
-                typer_report_error(tp, expr, "Error: %.*s expects %d argument(s), got %d",
+                typer_report_error(tp, tokenizer, expr, "Error: %.*s expects %d argument(s), got %d",
                                     (int)callee_name.length, callee_name.data, paramc, argc);
                 break;
             }
             for(int i = 0; i < argc; i++) {
-                type_kind arg_type = typecheck_operand(tp, call->params[i]);
+                type_kind arg_type = typecheck_operand(tp, tokenizer, call->params[i]);
                 if(arg_type != callee_sym->tp.param_types[i]) {
-                    typer_report_error(tp, call->params[i], "Error: argument %d type mismatch", i + 1);
+                    typer_report_error(tp, tokenizer, call->params[i], "Error: argument %d type mismatch", i + 1);
                 }
             }
         } break;
         case NODE_KIND_ERROR:
-            typer_report_error(tp, expr, "Got an error node in typecheck_expression()");
+            typer_report_error(tp, tokenizer, expr, "Got an error node in typecheck_expression()");
             break;
         default:
-            typer_report_error(tp, expr, "Unexpected node kind in typecheck_expression()");
+            typer_report_error(tp, tokenizer, expr, "Unexpected node kind in typecheck_expression()");
             break;
     }
 }
 
-void typer_report_error(typer *tp, ast_node *node, const char *fmt, ...) {
-    printf("%s:%d:%d ", tp->file_name, node->l0, node->c0);
+void typer_report_error(typer *tp, tokenizer *tokenizer, ast_node *node, const char *fmt, ...) {
+    source_location location = get_source_location_from_token(tokenizer, node->token_idx);
+    printf("%s:%d:%d ", tp->file_name, location.l0, location.c0);
     printf("Error: ");
     va_list args;
     va_start(args, fmt);
@@ -174,72 +175,72 @@ void typer_report_error(typer *tp, ast_node *node, const char *fmt, ...) {
     va_end(args);
     printf("\n");
 
-    print_line(node->start_of_line);
+    print_line(location.start_of_line);
     tp->error_count++;
     printf("\n");
 }
 
-void typecheck_statement(typer *tp, ast_node *statement) {
+void typecheck_statement(typer *tp, tokenizer *tokenizer, ast_node *statement) {
     switch(statement->kind) {
         case NODE_KIND_FOR:
             tp->loop_depth++;
-            typecheck_expression(tp, statement->for_loop.range);
-            typecheck_block(tp, statement->for_loop.block);
+            typecheck_expression(tp, tokenizer, statement->for_loop.range);
+            typecheck_block(tp, tokenizer, statement->for_loop.block);
             tp->loop_depth--;
             break;
         case NODE_KIND_WHILE:
             tp->loop_depth++;
-            typecheck_expression(tp, statement->while_loop.cond);
-            typecheck_block(tp, statement->while_loop.block);
+            typecheck_expression(tp, tokenizer, statement->while_loop.cond);
+            typecheck_block(tp, tokenizer, statement->while_loop.block);
             tp->loop_depth--;
             break;
         case NODE_KIND_IF:
-            typecheck_expression(tp, statement->if_stmt.cond);
-            typecheck_block(tp, statement->if_stmt.then_block);
+            typecheck_expression(tp, tokenizer, statement->if_stmt.cond);
+            typecheck_block(tp, tokenizer, statement->if_stmt.then_block);
             if(statement->if_stmt.else_part != NULL) {
-                typecheck_block(tp, statement->if_stmt.else_part);
+                typecheck_block(tp, tokenizer, statement->if_stmt.else_part);
             }
             break;
         case NODE_KIND_BREAK:
             if(tp->loop_depth == 0) {
-                typer_report_error(tp, statement, "break statement is not inside of a for loop or a while loop");
+                typer_report_error(tp, tokenizer, statement, "break statement is not inside of a for loop or a while loop");
             }
             break;
         case NODE_KIND_CONTINUE:
             if(tp->loop_depth == 0) {
-                typer_report_error(tp, statement, "continue statement is not inside of a for loop or a while loop");
+                typer_report_error(tp, tokenizer, statement, "continue statement is not inside of a for loop or a while loop");
             }
             break;
         case NODE_KIND_RETURN:
-            typecheck_expression(tp, statement->return_stmt.expression);
+            typecheck_expression(tp, tokenizer, statement->return_stmt.expression);
             break;
          case NODE_KIND_BINOP:
-            typecheck_expression(tp, statement);
+            typecheck_expression(tp, tokenizer, statement);
             break;
         case NODE_KIND_BLOCK:
-            typecheck_block(tp, statement);
+            typecheck_block(tp, tokenizer, statement);
             break;
         case NODE_KIND_IDENT:
-            typecheck_expression(tp, statement);
+            typecheck_expression(tp, tokenizer, statement);
             break;
         case NODE_KIND_INT_LIT:
         case NODE_KIND_FLOAT_LIT:
         case NODE_KIND_CHAR_LIT:
         case NODE_KIND_BOOL_LIT:
         case NODE_KIND_STRING_LIT:
-            typer_report_error(tp, statement, "expression cannot start with a literal!\n");
+            typer_report_error(tp, tokenizer, statement, "expression cannot start with a literal!\n");
             break;
         case NODE_KIND_ERROR:
-            typer_report_error(tp, statement, "Got an error node in typecheck_statement()");
+            typer_report_error(tp, tokenizer, statement, "Got an error node in typecheck_statement()");
             break;
         case NODE_KIND_STRUCT:
-            typer_report_error(tp, statement, "Error: struct declarations are only allowed in the global scope");
+            typer_report_error(tp, tokenizer, statement, "Error: struct declarations are only allowed in the global scope");
             break;
         case NODE_KIND_ENUM:
-            typer_report_error(tp, statement, "Error: enum declarations are only allowed in the global scope");
+            typer_report_error(tp, tokenizer, statement, "Error: enum declarations are only allowed in the global scope");
             break;
         case NODE_KIND_UNION:
-            typer_report_error(tp, statement, "Error: union declarations are only allowed in the global scope");
+            typer_report_error(tp, tokenizer, statement, "Error: union declarations are only allowed in the global scope");
             break;
     }
 }
@@ -263,17 +264,17 @@ void scope_add_symbol(typer *tp, symbol sym) {
     hm_push(cur_scope->symbols, sym.name, sym);
 }
 
-void typecheck_block(typer *tp, ast_node *block) {
+void typecheck_block(typer *tp, tokenizer *tokenizer, ast_node *block) {
     push_scope(tp);
     for(i32 i = 0; i < da_len(block->block.statements); i++) {
-        typecheck_statement(tp, block->block.statements[i]);
+        typecheck_statement(tp, tokenizer, block->block.statements[i]);
     }
     pop_scope(tp);
 }
 
-void typecheck_func_decl_params(typer *tp, ast_node **params) {
+void typecheck_func_decl_params(typer *tp, tokenizer *tokenizer, ast_node **params) {
     for(i32 i = 0; i < da_len(params); i++) {
-        typecheck_statement(tp, params[i]);
+        typecheck_statement(tp, tokenizer, params[i]);
     }
 }
 
@@ -292,38 +293,38 @@ symbol *scope_lookup(typer *tp, string8 name) {
     return NULL;
 }
 
-void typecheck_declaration_body(typer *tp, ast_node *decl) {
+void typecheck_declaration_body(typer *tp, tokenizer *tokenizer, ast_node *decl) {
     switch(decl->kind) {
         case NODE_KIND_FUNCTION_DECLARATION:
-            typecheck_block(tp, decl->func_decl.block);
-            typecheck_func_decl_params(tp, decl->func_decl.params);
+            typecheck_block(tp, tokenizer, decl->func_decl.block);
+            typecheck_func_decl_params(tp, tokenizer, decl->func_decl.params);
             break;
         case NODE_KIND_STRUCT:
-            typecheck_block(tp, decl->struct_decl.block);
+            typecheck_block(tp, tokenizer, decl->struct_decl.block);
             break;
         case NODE_KIND_ENUM:
-            typecheck_block(tp, decl->enum_decl.block);
+            typecheck_block(tp, tokenizer, decl->enum_decl.block);
             break;
         case NODE_KIND_UNION:
-            typecheck_block(tp, decl->union_decl.block);
+            typecheck_block(tp, tokenizer, decl->union_decl.block);
             break;
     }
 }
 
-b32 is_already_declared(typer *tp, ast_node *node, string8 name) {
+b32 is_already_declared(typer *tp, tokenizer *tokenizer, ast_node *node, string8 name) {
     symbol *str = scope_lookup(tp, name);
     if(str) {
         switch(node->kind) {
             case NODE_KIND_STRUCT:
-                typer_report_error(tp, node, "Error: redeclaration of struct by the name of %.*s", (int)name.length, name.data);
+                typer_report_error(tp, tokenizer, node, "Error: redeclaration of struct by the name of %.*s", (int)name.length, name.data);
                 return true;
                 break;
             case NODE_KIND_UNION:
-                typer_report_error(tp, node, "Error: redeclaration of union by the name of %.*s", (int)name.length, name.data);
+                typer_report_error(tp, tokenizer, node, "Error: redeclaration of union by the name of %.*s", (int)name.length, name.data);
                 return true;
                 break;
             case NODE_KIND_ENUM:
-                typer_report_error(tp, node, "Error: redeclaration of enum by the name of %.*s", (int)name.length, name.data);
+                typer_report_error(tp, tokenizer, node, "Error: redeclaration of enum by the name of %.*s", (int)name.length, name.data);
                 return true;
                 break;
         }
@@ -346,7 +347,7 @@ type_kind node_kind_to_type_kind(node_kind nd_kind) {
     return type_kind_none;
 }
 
-void typecheck_declaration_header(typer *tp, ast_node *decl) {
+void typecheck_declaration_header(typer *tp, tokenizer *tokenizer, ast_node *decl) {
     switch(decl->kind) {
         case NODE_KIND_FUNCTION_DECLARATION: {
             symbol function_name_sym;
@@ -371,7 +372,7 @@ void typecheck_declaration_header(typer *tp, ast_node *decl) {
 
                             da_push(function_name_sym.tp.param_types, kind);
                         } else {
-                            typer_report_error(tp, decl, "Expected ':' between param name and param type.");
+                            typer_report_error(tp, tokenizer, decl, "Expected ':' between param name and param type.");
                         }
                     } break;
                 }
@@ -382,7 +383,7 @@ void typecheck_declaration_header(typer *tp, ast_node *decl) {
         case NODE_KIND_ENUM:
         case NODE_KIND_UNION: {
             string8 ident = decl->struct_decl.ident->ident.name;
-            b32 already_declared = is_already_declared(tp, decl, ident);
+            b32 already_declared = is_already_declared(tp, tokenizer, decl, ident);
             if(!already_declared) {
                 symbol sym;
                 sym.name = ident;
@@ -402,7 +403,7 @@ void make_primitive_type(typer *tp, string8 name) {
     scope_add_symbol(tp, sym);
 }
 
-void typechecker_prepass(typer *tp, ast_node *root) {
+void typechecker_prepass(typer *tp, tokenizer *tokenizer, ast_node *root) {
     make_primitive_type(tp, s("i8"));
     make_primitive_type(tp, s("i16"));
     make_primitive_type(tp, s("i32"));
@@ -423,16 +424,16 @@ void typechecker_prepass(typer *tp, ast_node *root) {
     make_primitive_type(tp, s("union"));
 
     for (i32 i = 0; i < da_len(root->file.declarations); i++) {
-        typecheck_declaration_header(tp, root->file.declarations[i]);
+        typecheck_declaration_header(tp, tokenizer, root->file.declarations[i]);
     }
 }
 
-void typecheck_file(typer *tp, ast_node *root) {
+void typecheck_file(typer *tp, tokenizer *tokenizer, ast_node *root) {
     push_scope(tp);
-    typechecker_prepass(tp, root);
+    typechecker_prepass(tp, tokenizer, root);
     for(i32 i = 0; i < da_len(root->file.declarations); i++) {
         ast_node *declaration = root->file.declarations[i];
-        typecheck_declaration_body(tp, declaration);
+        typecheck_declaration_body(tp, tokenizer, declaration);
     }
     pop_scope(tp);
 }

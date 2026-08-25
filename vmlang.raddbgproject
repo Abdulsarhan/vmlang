@@ -1,5 +1,12 @@
 // raddbg 0.9.25 project file
 
+recent_file: path: "parser.c"
+recent_file: path: "../../Program Files (x86)/Windows Kits/10/include/10.0.26100.0/ucrt/stdio.h"
+recent_file: path: "minkernel/crts/ucrt/src/appcrt/stdio/_sftbuf.cpp"
+recent_file: path: "minkernel/crts/ucrt/inc/corecrt_internal_stdio.h"
+recent_file: path: "minkernel/crts/ucrt/src/appcrt/stdio/fflush.cpp"
+recent_file: path: "minkernel/crts/ucrt/src/appcrt/lowio/write.cpp"
+recent_file: path: "tokenizer.c"
 recent_file: path: "vmlc.c"
 recent_file: path: "pe_file.c"
 recent_file: path: "D:/a/_work/1/s/src/vctools/crt/vcruntime/src/string/amd64/memcpy.asm"
@@ -11,9 +18,7 @@ recent_file: path: "typer.c"
 recent_file: path: "minkernel/crts/ucrt/src/appcrt/string/strnlen.cpp"
 recent_file: path: "ds.h"
 recent_file: path: "minkernel/crts/ucrt/src/appcrt/heap/free_base.cpp"
-recent_file: path: "parser.c"
 recent_file: path: "../tcc/tinycc/win32/examples/hello_win.c"
-recent_file: path: "tokenizer.c"
 recent_file: path: "D:/a/_work/1/s/src/vctools/crt/vcstartup/src/startup/exe_common.inl"
 target:
 {
@@ -25,7 +30,7 @@ target:
 debug_info:
 {
   path: "C:/programming/vmlang/vmlc.pdb"
-  timestamp: 66223628064799
+  timestamp: 66223878178178
 }
 breakpoint:
 {
@@ -42,11 +47,6 @@ debug_info:
   path: "C:/programming/tcc/tinycc/win32/hello_win.pdb"
   timestamp: 66217186560252
 }
-breakpoint:
-{
-  source_location: "../tcc/tinycc/win32/examples/hello_win.c:81:1"
-  hit_count: 0
-}
 debug_info:
 {
   path: "C:/programming/tcc/tinycc/win32/examples/hello_win.pdb"
@@ -59,6 +59,6 @@ debug_info:
 }
 breakpoint:
 {
-  source_location: "x64_backend.c:249:1"
+  source_location: "parser.c:868:1"
   hit_count: 0
 }

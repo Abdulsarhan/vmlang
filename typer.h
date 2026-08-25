@@ -46,21 +46,21 @@ struct typer {
 };
 
 // phase 0
-void typecheck_file(typer *tp, ast_node *root);
+void typecheck_file(typer *tp, tokenizer *tokenizer, ast_node *root);
 
 // phase 1
-void typechecker_prepass(typer *tp, ast_node *root);
-void typecheck_declaration_header(typer *tp, ast_node *decl);
+void typechecker_prepass(typer *tp, tokenizer *tokenizer, ast_node *root);
+void typecheck_declaration_header(typer *tp, tokenizer *tokenizer, ast_node *decl);
 
 // phase 2
-void typecheck_declaration_body(typer *tp, ast_node *decl);
-void typecheck_func_decl_params(typer *tp, ast_node **params);
-void typecheck_block(typer *tp, ast_node *block);
-void typecheck_statement(typer *tp, ast_node *statement);
-void typecheck_expression(typer *tp, ast_node *expr);
+void typecheck_declaration_body(typer *tp, tokenizer *tokenizer, ast_node *decl);
+void typecheck_func_decl_params(typer *tp, tokenizer *tokenizer, ast_node **params);
+void typecheck_block(typer *tp, tokenizer *tokenizer, ast_node *block);
+void typecheck_statement(typer *tp, tokenizer *tokenizer, ast_node *statement);
+void typecheck_expression(typer *tp, tokenizer *tokenizer, ast_node *expr);
 
 // error reporting
-void typer_report_error(typer *tp, ast_node *node, const char *fmt, ...);
+void typer_report_error(typer *tp, tokenizer *tokenizer, ast_node *node, const char *fmt, ...);
 
 // scope management & lookup
 void scope_add_symbol(typer *tp, symbol sym);
