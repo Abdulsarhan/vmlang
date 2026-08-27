@@ -426,7 +426,7 @@ ast_node *parse_prefix(ast *ast, tokenizer *tokenizer) {
             return node_char_lit(ast, get_char_value_from_token(tokenizer, tok));
             break;
         case TOKEN_KIND_STRING_LITERAL:
-            return node_string_lit(ast, get_ident_or_string_literal_from_token(tokenizer, tok));
+            return node_string_lit(ast, get_string_literal_value_from_token(tokenizer, tok));
             break;
         case TOKEN_KIND_BOOL_LITERAL:
             return node_bool_lit(ast, get_bool_value_from_token(tokenizer, tok));
@@ -465,15 +465,12 @@ ast_node *parse_prefix(ast *ast, tokenizer *tokenizer) {
             return error_node(ast, ERROR_KIND_LEX_ERROR, token_idx);
             break;
         default:
-            mem_arena *scratch = arena_get_scratch();
-            string8 token_string = token_to_string(scratch, tokenizer, tok);
+            string8 token_string = token_to_string(tokenizer, tok);
             printf("unhandled token kind in %s(), %.*s", __func__, (int)token_string.length, token_string.data);
             return error_node(ast, ERROR_KIND_PARSE_ERROR, token_idx);
             break;
     }
 }
-
-// 1 + 2 * 3 + 4 + 5
 
 ast_node *parse_expression(ast *ast, tokenizer *tokenizer, int min_prec) {
     ast_node *left = parse_prefix(ast, tokenizer);
@@ -568,7 +565,7 @@ ast_node *parse_infix_and_postfix(ast *ast, tokenizer *tokenizer, i32 prec, ast_
             ast_node *right = parse_expression(ast, tokenizer, prec - 1); // -1 for right-assoc
             binop_kind kind = binop_from_token(tok);
             mem_arena *arena = arena_get_scratch();
-            string8 str = token_to_string(arena, tokenizer, tok);
+            string8 str = token_to_string(tokenizer, tok);
             const char *cstr = str_to_cstr(arena, str);
 
             if(right->kind == NODE_KIND_ERROR && right->error.kind == ERROR_KIND_LEX_ERROR) {
@@ -885,8 +882,7 @@ ast_node *parse_toplevel_statement(ast *ast, tokenizer *tokenizer, u32 token_idx
             return err_node;
         } break;
         default:
-            mem_arena *scratch = arena_get_scratch();
-            string8 token_string = token_to_string(scratch, tokenizer, tok);
+            string8 token_string = token_to_string(tokenizer, tok);
             printf("unhandled token kind in %s(): %.*s", __func__, (int)token_string.length, token_string.data);
             break;
     }
@@ -945,7 +941,7 @@ ast_node *parse_file(ast *ast, tokenizer *tokenizer) {
         da_push(node->file.declarations, declaration);
     }
 
-    // we use the scratch arena for some things in the parser.
+    // we use the scratch arena to print some errors in the parser.
     // this is a good point to reset it.
     mem_arena *scratch = arena_get_scratch();
     arena_clear(scratch);

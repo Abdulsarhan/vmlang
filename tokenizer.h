@@ -91,8 +91,7 @@ struct tokenizer {
 };
 
 void tokenize(tokenizer *tokenizer);
-string8 token_to_string(mem_arena *arena, tokenizer *tokenizer, token tok);
-string8 token_kind_to_string(token_kind kind);
+string8 token_to_string(tokenizer *tokenizer, token tok);
 void tok_report_error(tokenizer *tokenizer, const char *fmt, ...);
 u32 get_token_len(tokenizer *tokenizer, token tok);
 
@@ -104,4 +103,14 @@ i64 get_int_value_from_token(tokenizer *tokenizer, token tok);
 f64 get_float_value_from_token(tokenizer *tokenizer, token tok);
 b32 get_bool_value_from_token(tokenizer *tokenizer, token tok);
 string8 get_ident_or_string_literal_from_token(tokenizer *tokenizer, token tok);
+
+
+
+u32 get_identifier_len(tokenizer *tokenizer, token tok);
+u32 get_string_literal_len(tokenizer *tokenizer, token tok);
+u32 get_int_literal_len(tokenizer *tokenizer, token tok);
+u32 get_float_literal_len(tokenizer *tokenizer, token tok);
+u32 get_char_literal_len(tokenizer *tokenizer, token tok);
+u32 get_bool_literal_len(tokenizer *tokenizer, token tok);
+
 #endif /* TOKENIZER_H */

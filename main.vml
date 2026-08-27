@@ -9,5 +9,6 @@ thing :: struct {
 }
 
 main :: () -> i32 {
+    a := '\n';
     print("Hello world!");
 }
