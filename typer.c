@@ -29,6 +29,10 @@ type_kind is_primitive_type(string8 ident) {
             return type_kind_u32;
         } else if(str_match(ident, s("u64"))) {
             return type_kind_u64;
+        } else if(str_match(ident, s("f32"))) {
+            return type_kind_f32;
+        } else if(str_match(ident, s("f32"))) {
+            return type_kind_f64;
         }
     } else if(ident.length == 4) {
         if(str_match(ident, s("bool"))) {
@@ -81,9 +85,12 @@ type_kind typecheck_operand(typer *tp, tokenizer *tokenizer, ast_node *operand) 
 
 void typecheck_expression(typer *tp, tokenizer *tokenizer, ast_node *expr) {
     switch(expr->kind) {
+#if 0   // NOTE: this error doesn't work right now because in an enum, we don't have a type for each member.
+        // maybe the solution is to look at the parent of the expression?
         case NODE_KIND_IDENT:
             typer_report_error(tp, tokenizer, expr, "Error: found a freestanding identifier when we expected an expression.");
             break;
+#endif
         case NODE_KIND_BINOP: {
             ast_node_binop *binop = &expr->binop;
             ast_node *left = binop->left;
@@ -158,6 +165,10 @@ void typecheck_expression(typer *tp, tokenizer *tokenizer, ast_node *expr) {
         } break;
         case NODE_KIND_ERROR:
             typer_report_error(tp, tokenizer, expr, "Got an error node in typecheck_expression()");
+            break;
+        case NODE_KIND_IDENT:
+            //TODO: There should probably be more typechecking shit in here. I am just putting this here.
+            // so that when we typecheck an enum, we don't hit the default case.
             break;
         default:
             typer_report_error(tp, tokenizer, expr, "Unexpected node kind in typecheck_expression()");

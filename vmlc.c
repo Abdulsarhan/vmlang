@@ -40,10 +40,11 @@ int main(int argc, char **argv) {
     tokenizer.file = file;
     tokenizer.at = file;
     tokenizer.end = file + file_size;
-    tokenizer.tokens = arena_push_array(arena, token, 16384);
-    assert(tokenizer.tokens);
+    da_reserve(tokenizer.token_kinds, sizeof(token_kind) * 16384);
+    da_reserve(tokenizer.token_positions, sizeof(u32) * 16384);
+    assert(tokenizer.token_kinds);
+    assert(tokenizer.token_positions);
     tokenizer.current_token = 0;
-    tokenizer.token_count = 0;
     tokenizer.current_line_number = 1;
     tokenizer.current_column_number = 0;
     tokenizer.file_path = (u8*)argv[1];
@@ -69,6 +70,7 @@ int main(int argc, char **argv) {
         print_ast(root, 0);
     }
 
+    printf("size_of_enum: %zu", sizeof(token_kind));
     generate_code(root, s("./test.exe"), tt_x64_pc_windows, output_format_pe);
 
     return 0;

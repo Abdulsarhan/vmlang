@@ -121,6 +121,7 @@ string8 token_kind_to_string(token_kind kind) {
         case '^':                                return s("^");
         case '|':                                return s("|");
         case ';':                                return s(";");
+        case ',':                                return s(",");
 
         case TOKEN_KIND_PLUS_EQUAL:              return s("+=");
         case TOKEN_KIND_MINUS_EQUAL:             return s("-=");
@@ -162,15 +163,15 @@ string8 token_kind_to_string(token_kind kind) {
     return s("");
 }
 
-string8 token_to_string(tokenizer *tokenizer, token tok) {
-    switch(tok.kind) {
-        case TOKEN_KIND_IDENTIFIER:              return (string8){.data = &tokenizer->file[tok.pos], .length = get_identifier_len(tokenizer, tok)};
-        case TOKEN_KIND_INT_LITERAL:             return (string8){.data = &tokenizer->file[tok.pos], .length = get_int_literal_len(tokenizer, tok)};
-        case TOKEN_KIND_FLOAT_LITERAL:           return (string8){.data = &tokenizer->file[tok.pos], .length = get_float_literal_len(tokenizer, tok)};
-        case TOKEN_KIND_CHAR_LITERAL:            return (string8){.data = &tokenizer->file[tok.pos], .length = get_char_literal_len(tokenizer, tok)};
-        case TOKEN_KIND_BOOL_LITERAL:            return (string8){.data = &tokenizer->file[tok.pos], .length = get_bool_literal_len(tokenizer, tok)};
-        case TOKEN_KIND_STRING_LITERAL:          return (string8){.data = &tokenizer->file[tok.pos], .length = get_string_literal_len(tokenizer, tok)};
-        default:                                 return token_kind_to_string(tok.kind);
+string8 token_to_string(tokenizer *tokenizer, token_kind kind, u32 token_pos) {
+    switch(kind) {
+        case TOKEN_KIND_IDENTIFIER:              return (string8){.data = &tokenizer->file[token_pos], .length = get_identifier_len(tokenizer, token_pos)};
+        case TOKEN_KIND_INT_LITERAL:             return (string8){.data = &tokenizer->file[token_pos], .length = get_int_literal_len(tokenizer, token_pos)};
+        case TOKEN_KIND_FLOAT_LITERAL:           return (string8){.data = &tokenizer->file[token_pos], .length = get_float_literal_len(tokenizer, token_pos)};
+        case TOKEN_KIND_CHAR_LITERAL:            return (string8){.data = &tokenizer->file[token_pos], .length = get_char_literal_len(tokenizer, token_pos)};
+        case TOKEN_KIND_BOOL_LITERAL:            return (string8){.data = &tokenizer->file[token_pos], .length = get_bool_literal_len(tokenizer, token_pos)};
+        case TOKEN_KIND_STRING_LITERAL:          return (string8){.data = &tokenizer->file[token_pos], .length = get_string_literal_len(tokenizer, token_pos)};
+        default:                                 return token_kind_to_string(kind);
     }
     return s("");
 }
@@ -190,15 +191,15 @@ void tok_report_error(tokenizer *tokenizer, const char *fmt, ...) {
 }
 
 void make_token(tokenizer *tokenizer, u8 *at, token_kind kind) {
-    token *tok = &tokenizer->tokens[tokenizer->token_count++];
-    tok->pos = at - tokenizer->file;
-    tok->kind = kind;
+    u32 token_pos = at - tokenizer->file;
+    da_push(tokenizer->token_positions, token_pos);
+    da_push(tokenizer->token_kinds, kind);
 }
 
-u8 get_char_value_from_token(tokenizer *tokenizer, token tok) {
-    u32 token_len = get_char_literal_len(tokenizer, tok);
+u8 get_char_value_from_token(tokenizer *tokenizer, u32 token_pos) {
+    u32 token_len = get_char_literal_len(tokenizer, token_pos);
 
-    u8 *char_start = &tokenizer->file[tok.pos];
+    u8 *char_start = &tokenizer->file[token_pos];
 
     u8 char_value = 0;
     if(token_len < 1) {
@@ -221,31 +222,31 @@ u8 get_char_value_from_token(tokenizer *tokenizer, token tok) {
     return char_value;
 }
 
-i64 get_int_value_from_token(tokenizer *tokenizer, token tok) {
-    string8 str = {.data = &tokenizer->file[tok.pos], .length = get_int_literal_len(tokenizer, tok)};
+i64 get_int_value_from_token(tokenizer *tokenizer, u32 token_pos) {
+    string8 str = {.data = &tokenizer->file[token_pos], .length = get_int_literal_len(tokenizer, token_pos)};
     return str_to_i64(str);
 }
 
-f64 get_float_value_from_token(tokenizer *tokenizer, token tok) {
-    string8 str = {.data = &tokenizer->file[tok.pos], .length = get_float_literal_len(tokenizer, tok)};
+f64 get_float_value_from_token(tokenizer *tokenizer, u32 token_pos) {
+    string8 str = {.data = &tokenizer->file[token_pos], .length = get_float_literal_len(tokenizer, token_pos)};
     return str_to_f64(str);
 }
 
-b32 get_bool_value_from_token(tokenizer *tokenizer, token tok) {
-    u32 len = get_bool_literal_len(tokenizer, tok);
+b32 get_bool_value_from_token(tokenizer *tokenizer, u32 token_pos) {
+    u32 len = get_bool_literal_len(tokenizer, token_pos);
     if(len == 4) {
         return true;
     }
     return false;
 }
 
-string8 get_string_literal_value_from_token(tokenizer *tokenizer, token tok) {
-    string8 str = {.data = &tokenizer->file[tok.pos], .length = get_string_literal_len(tokenizer, tok)};
+string8 get_string_literal_value_from_token(tokenizer *tokenizer, u32 token_pos) {
+    string8 str = {.data = &tokenizer->file[token_pos], .length = get_string_literal_len(tokenizer, token_pos)};
     return str;
 }
 
-string8 get_ident_or_string_literal_from_token(tokenizer *tokenizer, token tok) {
-    string8 str = {.data = &tokenizer->file[tok.pos], .length = get_identifier_len(tokenizer, tok)};
+string8 get_ident_from_token(tokenizer *tokenizer, u32 token_pos) {
+    string8 str = {.data = &tokenizer->file[token_pos], .length = get_identifier_len(tokenizer, token_pos)};
     return str;
 }
 
@@ -255,25 +256,24 @@ struct line {
     u8 *start_of_line;
 };
 
-line get_token_line_number(tokenizer *tokenizer, token tok) {
-    u8 *at = tokenizer->file;
-    u8 *token_pos = &tokenizer->file[tok.pos];
+line get_token_line_number(tokenizer *tokenizer, u32 token_pos) {
+    u8 *cursor = tokenizer->file;
 
     u32 current_line_number = 1;
-    while((at < tokenizer->end) && (at != token_pos)) {
-        if(*at == '\n') {
+    while((cursor < tokenizer->end) && (cursor != &tokenizer->file[token_pos])) {
+        if(*cursor == '\n') {
             current_line_number++;
         }
-        at++;
+        cursor++;
     }
     line l;
     l.line_number = current_line_number;
-    l.start_of_line = at;
+    l.start_of_line = cursor;
     return l;
 }
 
-u32 get_identifier_len(tokenizer *tokenizer, token tok) {
-    u8 *at = &tokenizer->file[tok.pos];
+u32 get_identifier_len(tokenizer *tokenizer, u32 token_pos) {
+    u8 *at = &tokenizer->file[token_pos];
     u8 *at_orig = at;
 
     while(at < tokenizer->end) {
@@ -285,8 +285,8 @@ u32 get_identifier_len(tokenizer *tokenizer, token tok) {
     return at - at_orig;
 }
 
-u32 get_string_literal_len(tokenizer *tokenizer, token tok) {
-    u8 *at = &tokenizer->file[tok.pos];
+u32 get_string_literal_len(tokenizer *tokenizer, u32 token_pos) {
+    u8 *at = &tokenizer->file[token_pos];
     u8 *at_orig = at;
 
     while(at < tokenizer->end && *at != '"') {
@@ -302,8 +302,8 @@ u32 get_string_literal_len(tokenizer *tokenizer, token tok) {
     return at - at_orig;
 }
 
-u32 get_int_literal_len(tokenizer *tokenizer, token tok) {
-    u8 *at = &tokenizer->file[tok.pos];
+u32 get_int_literal_len(tokenizer *tokenizer, u32 token_pos) {
+    u8 *at = &tokenizer->file[token_pos];
     u8 *at_orig = at;
 
     while(at < tokenizer->end) {
@@ -315,8 +315,8 @@ u32 get_int_literal_len(tokenizer *tokenizer, token tok) {
     return at - at_orig;
 }
 
-u32 get_float_literal_len(tokenizer *tokenizer, token tok) {
-    u8 *at = &tokenizer->file[tok.pos];
+u32 get_float_literal_len(tokenizer *tokenizer, u32 token_pos) {
+    u8 *at = &tokenizer->file[token_pos];
     u8 *at_orig = at;
 
     while(at < tokenizer->end) {
@@ -329,8 +329,8 @@ u32 get_float_literal_len(tokenizer *tokenizer, token tok) {
     return at - at_orig;
 }
 
-u32 get_char_literal_len(tokenizer *tokenizer, token tok) {
-    u8 *at = &tokenizer->file[tok.pos];
+u32 get_char_literal_len(tokenizer *tokenizer, u32 token_pos) {
+    u8 *at = &tokenizer->file[token_pos];
     u8 *at_orig = at;
 
     while(at < tokenizer->end && *at != '\'') {
@@ -347,8 +347,8 @@ u32 get_char_literal_len(tokenizer *tokenizer, token tok) {
     return at - at_orig;
 }
 
-u32 get_bool_literal_len(tokenizer *tokenizer, token tok) {
-    u8 *at = &tokenizer->file[tok.pos];
+u32 get_bool_literal_len(tokenizer *tokenizer, u32 token_pos) {
+    u8 *at = &tokenizer->file[token_pos];
     u8 *at_orig = at;
 
     while(at < tokenizer->end) {
@@ -361,11 +361,11 @@ u32 get_bool_literal_len(tokenizer *tokenizer, token tok) {
     return at - at_orig;
 }
 
-u32 get_token_len(tokenizer *tokenizer, token tok) {
-    u8 *at = &tokenizer->file[tok.pos];
+u32 get_token_len(tokenizer *tokenizer, token_kind kind, u32 token_pos) {
+    u8 *at = &tokenizer->file[token_pos];
     u8 *at_orig = at;
 
-    switch(tok.kind) {
+    switch(kind) {
 
     case TOKEN_KIND_PLUS_EQUAL:
     case TOKEN_KIND_MINUS_EQUAL:
@@ -409,17 +409,17 @@ u32 get_token_len(tokenizer *tokenizer, token tok) {
     case TOKEN_KIND_CONTINUE:
         return 8;
     case TOKEN_KIND_STRING_LITERAL:
-        return get_string_literal_len(tokenizer, tok);
+        return get_string_literal_len(tokenizer, token_pos);
     case TOKEN_KIND_CHAR_LITERAL:
-        return get_char_literal_len(tokenizer, tok);
+        return get_char_literal_len(tokenizer, token_pos);
     case TOKEN_KIND_IDENTIFIER:
-        return get_identifier_len(tokenizer, tok);
+        return get_identifier_len(tokenizer, token_pos);
     case TOKEN_KIND_BOOL_LITERAL:
-        return get_bool_literal_len(tokenizer, tok);
+        return get_bool_literal_len(tokenizer, token_pos);
     case TOKEN_KIND_INT_LITERAL:
-        return get_int_literal_len(tokenizer, tok);
+        return get_int_literal_len(tokenizer, token_pos);
     case TOKEN_KIND_FLOAT_LITERAL:
-        return get_float_literal_len(tokenizer, tok);
+        return get_float_literal_len(tokenizer, token_pos);
     case TOKEN_KIND_END_OF_STREAM:
     default:
         return 1;
@@ -431,10 +431,12 @@ u32 get_token_len(tokenizer *tokenizer, token tok) {
 
 source_location get_source_location_from_token(tokenizer *tokenizer, u32 token_idx) {
     source_location location;
-    token tok = tokenizer->tokens[token_idx];
-    line l = get_token_line_number(tokenizer, tok);
+    token_kind kind = tokenizer->token_kinds[token_idx];
+    u32 token_pos = tokenizer->token_positions[token_idx];
+
+    line l = get_token_line_number(tokenizer, token_pos);
     location.l0 = l.line_number;
-    location.l1 = l.line_number + get_token_len(tokenizer, tok);
+    location.l1 = l.line_number + get_token_len(tokenizer, kind, token_pos);
     location.c0 = tokenizer->current_column_number;
     location.c1 = 0;
     location.start_of_line = l.start_of_line;

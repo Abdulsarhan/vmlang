@@ -380,6 +380,12 @@
 #define clamp_bottom(X,B) Max(X,B)
 #define clamp(low,X,high) (((X)<(low))?(low):((X)>(high))?(high):(X))
 
+#if COMPILER_MSVC
+#define packed_enum __pragma(pack(push, 1)) enum __pragma(pack(pop))
+#elif COMPILER_CLANG || COMPILER_GCC
+#define packed_enum enum __attribute__((__packed__))
+#endif
+
 /* : Type -> Alignment */
 
 #if COMPILER_MSVC
@@ -609,7 +615,7 @@ DSAPI void arena_pop_to(mem_arena *arena, size_t pos);
 DSAPI void arena_clear(mem_arena *arena);
 DSAPI void arena_destroy(mem_arena *arena);
 DSAPI int arena_reset_region(const mem_arena *arena, void *region_start, size_t region_size);
-DSAPI mem_arena *arena_get_scratch();
+DSAPI mem_arena *arena_get_scratch(void);
 
 /* string slicing */
 DSAPI string8 str_from_to(string8 str, size_t from, size_t to);
@@ -946,7 +952,7 @@ DSAPI int arena_reset_region(const mem_arena *arena, void *region_start, size_t 
 }
 
 global u8 g_scratch_mem[mebibytes(10)];
-DSAPI mem_arena *arena_get_scratch() {
+DSAPI mem_arena *arena_get_scratch(void) {
     mem_arena *arena = (mem_arena*)g_scratch_mem;
     arena->pos = ARENA_BASE_POS;
     arena->committed_size = 16384;

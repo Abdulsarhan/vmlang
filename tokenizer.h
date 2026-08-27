@@ -7,15 +7,15 @@
 typedef enum token_kind {
     // The token kind for single-character tokens is just the ascii value of that token.
     // because of that, we don't have to define those tokens here.
-    TOKEN_KIND_IDENTIFIER = 256,
+    TOKEN_KIND_IDENTIFIER = 128,
 
-    TOKEN_KIND_PLUS_EQUAL = 257, /* += */
+    TOKEN_KIND_PLUS_EQUAL,
     TOKEN_KIND_MINUS_EQUAL,
     TOKEN_KIND_DIVIDE_EQUAL,
     TOKEN_KIND_MOD_EQUAL,
     TOKEN_KIND_MULTIPLY_EQUAL,
 
-    TOKEN_KIND_XOR_EQUAL, /* ^= */
+    TOKEN_KIND_XOR_EQUAL,
     TOKEN_KIND_AND_EQUAL,
     TOKEN_KIND_OR_EQUAL,
 
@@ -68,21 +68,22 @@ struct source_location {
     u8 *start_of_line;
 };
 
-typedef struct token token;
-struct token {
-    u32 pos; // position of the start of the token in the file.
-    token_kind kind;
-};
-
 typedef struct tokenizer tokenizer;
 struct tokenizer {
+    // file start, file cursor, file end
     u8 *file;
     u8 *at;
     u8 *end;
-    token *tokens;
-    u32 current_token;
-    u32 token_count;
 
+    // token data, as a struct of arrays.
+    u8 *token_positions;
+    token_kind *token_kinds;
+
+    // current token that the parser is looking at.
+    // NOTE: Does it make more sense to have this in the parser?
+    u32 current_token;
+
+    // Information used for error reporting.
     u32 current_line_number;
     u32 current_column_number;
     u8 *start_of_current_line;
@@ -91,26 +92,24 @@ struct tokenizer {
 };
 
 void tokenize(tokenizer *tokenizer);
-string8 token_to_string(tokenizer *tokenizer, token tok);
+string8 token_to_string(tokenizer *tokenizer, token_kind kind, u32 token_pos);
 void tok_report_error(tokenizer *tokenizer, const char *fmt, ...);
-u32 get_token_len(tokenizer *tokenizer, token tok);
+
+u32 get_token_len(tokenizer *tokenizer, token_kind kind, u32 token_pos);
+u32 get_identifier_len(tokenizer *tokenizer, u32 token_pos);
+u32 get_string_literal_len(tokenizer *tokenizer, u32 token_pos);
+u32 get_int_literal_len(tokenizer *tokenizer, u32 token_pos);
+u32 get_float_literal_len(tokenizer *tokenizer, u32 token_pos);
+u32 get_char_literal_len(tokenizer *tokenizer, u32 token_pos);
+u32 get_bool_literal_len(tokenizer *tokenizer, u32 token_pos);
 
 // NOTE: These functions are not to be called inside the lexer. They are meant to
 // be used in the parser and/or typechecking phases.
 source_location get_source_location_from_token(tokenizer *tokenizer, u32 token_idx);
-u8 get_char_value_from_token(tokenizer *tokenizer, token tok);
-i64 get_int_value_from_token(tokenizer *tokenizer, token tok);
-f64 get_float_value_from_token(tokenizer *tokenizer, token tok);
-b32 get_bool_value_from_token(tokenizer *tokenizer, token tok);
-string8 get_ident_or_string_literal_from_token(tokenizer *tokenizer, token tok);
-
-
-
-u32 get_identifier_len(tokenizer *tokenizer, token tok);
-u32 get_string_literal_len(tokenizer *tokenizer, token tok);
-u32 get_int_literal_len(tokenizer *tokenizer, token tok);
-u32 get_float_literal_len(tokenizer *tokenizer, token tok);
-u32 get_char_literal_len(tokenizer *tokenizer, token tok);
-u32 get_bool_literal_len(tokenizer *tokenizer, token tok);
-
+u8 get_char_value_from_token(tokenizer *tokenizer, u32 token_pos);
+i64 get_int_value_from_token(tokenizer *tokenizer, u32 token_pos);
+f64 get_float_value_from_token(tokenizer *tokenizer, u32 token_pos);
+b32 get_bool_value_from_token(tokenizer *tokenizer, u32 token_pos);
+string8 get_string_literal_value_from_token(tokenizer *tokenizer, u32 token_pos);
+string8 get_ident_from_token(tokenizer *tokenizer, u32 token_pos);
 #endif /* TOKENIZER_H */
