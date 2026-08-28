@@ -4,11 +4,6 @@ this is a multi-line comment
 
 // this is a comment
 
-thing :: struct {
-    a: i32;
-    b: f32;
-}
-
 onion :: union {
     a: i32;
     b: f32;
@@ -19,10 +14,23 @@ fruit_kinds :: enum {
     strawberry;
 }
 
-this_thing := 3;
+thing :: struct {
+    a: i32;
+    b: f32;
+}
 
 main :: () -> i32 {
-    a := '\a';
-    //d, f := this_function();
-    print("Hello world!");
+    a := 'a';
+    b := 'b'; // char
+
+    c := true; // bool
+    d := false;
+    e := 103; // int
+    f := 103.1; // float
+    string := "this_string"; // string
+
+    a := 10.0; // float
+    b := 10; // int
+    c := a + b;
 }
+

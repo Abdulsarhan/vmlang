@@ -1262,7 +1262,7 @@ DSAPI i32 str_to_i32(string8 str) {
     }
 
     for (; i < str.length; i++) {
-        number *= 10 + (str.data[i] - '0');
+        number = number * 10 + (str.data[i] - '0');
     }
 
     return sign * number;
@@ -1280,15 +1280,15 @@ DSAPI i64 str_to_i64(string8 str) {
     }
 
     for (; i < str.length; i++) {
-        number *= 10 + (str.data[i] - '0');
+        number = number * 10 + (str.data[i] - '0');
     }
 
     return sign * number;
 }
 
 DSAPI f64 str_to_f64(string8 str) {
-    // Find the decimal point
-    u64 whole_part_len = str.length; // default: no decimal point
+    // find whole part len
+    u64 whole_part_len = 0;
     for (u64 i = 0; i < str.length; i++) {
         if (str.data[i] == '.') {
             whole_part_len = i;

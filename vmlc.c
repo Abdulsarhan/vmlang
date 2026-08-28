@@ -70,7 +70,6 @@ int main(int argc, char **argv) {
         print_ast(root, 0);
     }
 
-    printf("size_of_enum: %zu", sizeof(token_kind));
     generate_code(root, s("./test.exe"), tt_x64_pc_windows, output_format_pe);
 
     return 0;

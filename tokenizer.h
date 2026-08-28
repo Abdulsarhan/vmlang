@@ -2,7 +2,6 @@
 #define TOKENIZER_H
 
 #include "ds.h"
-#define token_buf_size 512
 
 typedef enum token_kind {
     // The token kind for single-character tokens is just the ascii value of that token.
@@ -59,7 +58,7 @@ typedef enum token_kind {
     TOKEN_KIND_BREAK,
     TOKEN_KIND_RETURN,
     TOKEN_KIND_ERROR,
-}token_kind;
+} token_kind;
 
 typedef struct source_location source_location;
 struct source_location {
@@ -76,7 +75,7 @@ struct tokenizer {
     u8 *end;
 
     // token data, as a struct of arrays.
-    u8 *token_positions;
+    u32 *token_positions;
     token_kind *token_kinds;
 
     // current token that the parser is looking at.

@@ -139,8 +139,8 @@ string8 token_kind_to_string(token_kind kind) {
         case TOKEN_KIND_RIGHT_SHIFT_EQUAL:       return s(">>=");
         case TOKEN_KIND_GREATER_THAN_EQUAL:      return s(">=");
         case TOKEN_KIND_LESS_THAN_EQUAL:         return s("<=");
-        case TOKEN_KIND_RIGHT_SHIFT:             return s(">");
-        case TOKEN_KIND_LEFT_SHIFT:              return s("<");
+        case TOKEN_KIND_RIGHT_SHIFT:             return s(">>");
+        case TOKEN_KIND_LEFT_SHIFT:              return s("<<");
         case TOKEN_KIND_COLON_COLON:             return s("::");
         case TOKEN_KIND_RIGHT_ARROW:             return s("->");
         case TOKEN_KIND_AND_AND:                 return s("&&");
@@ -288,11 +288,11 @@ u32 get_identifier_len(tokenizer *tokenizer, u32 token_pos) {
 u32 get_string_literal_len(tokenizer *tokenizer, u32 token_pos) {
     u8 *at = &tokenizer->file[token_pos];
     u8 *at_orig = at;
-
+ 
     while(at < tokenizer->end && *at != '"') {
         if(*at == '\\') {
             at++;
-            if (at < tokenizer->end && *at == '"') {
+            if (at < tokenizer->end) {
                 at++;
             }
         } else {
@@ -332,11 +332,11 @@ u32 get_float_literal_len(tokenizer *tokenizer, u32 token_pos) {
 u32 get_char_literal_len(tokenizer *tokenizer, u32 token_pos) {
     u8 *at = &tokenizer->file[token_pos];
     u8 *at_orig = at;
-
+ 
     while(at < tokenizer->end && *at != '\'') {
         if(*at == '\\') {
             at++;
-            if (at < tokenizer->end && *at == '\'') {
+            if (at < tokenizer->end) {
                 at++;
             }
         } else {
@@ -553,94 +553,104 @@ void tokenize(tokenizer *tokenizer) {
                 }
                 break;
             }
-            case '>':
+            case '>': {
+                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, tokenizer->at -1, TOKEN_KIND_GREATER_THAN_EQUAL);
+                    make_token(tokenizer, start, TOKEN_KIND_GREATER_THAN_EQUAL);
                 } else if (match(tokenizer, '>')) {
                     if(match(tokenizer, '=')) {
-                        make_token(tokenizer, tokenizer->at -1, TOKEN_KIND_RIGHT_SHIFT_EQUAL);
+                        make_token(tokenizer, start, TOKEN_KIND_RIGHT_SHIFT_EQUAL);
                     } else {
-                        make_token(tokenizer, tokenizer->at -1, TOKEN_KIND_RIGHT_SHIFT);
+                        make_token(tokenizer, start, TOKEN_KIND_RIGHT_SHIFT);
                     }
                 } else {
-                    make_token(tokenizer, tokenizer->at - 1, '>');
+                    make_token(tokenizer, start, '>');
                 }
-                break;
-            case '<':
+            } break;
+            case '<': {
+                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_LESS_THAN_EQUAL);
+                    make_token(tokenizer, start, TOKEN_KIND_LESS_THAN_EQUAL);
                 } else if (match(tokenizer, '<')) {
                     if(match(tokenizer, '=')) {
-                        make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_LEFT_SHIFT_EQUAL);
+                        make_token(tokenizer, start, TOKEN_KIND_LEFT_SHIFT_EQUAL);
                     } else {
-                        make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_LEFT_SHIFT);
+                        make_token(tokenizer, start, TOKEN_KIND_LEFT_SHIFT);
                     }
                 } else {
-                    make_token(tokenizer, tokenizer->at - 1, '<');
+                    make_token(tokenizer, start, '<');
                 }
-                break;
-            case '!':
+            } break;
+            case '!': {
+                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_NOT_EQUAL);
+                    make_token(tokenizer, start, TOKEN_KIND_NOT_EQUAL);
                 } else {
-                    make_token(tokenizer, tokenizer->at - 1, '!');
+                    make_token(tokenizer, start, '!');
                 }
-                break;
-            case '=':
+            } break;
+            case '=': {
+                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_EQUAL_EQUAL);
+                    make_token(tokenizer, start, TOKEN_KIND_EQUAL_EQUAL);
                 } else {
-                    make_token(tokenizer, tokenizer->at - 1, '=');
+                    make_token(tokenizer, start, '=');
                 }
-                break;
-            case '|':
+            } break;
+            case '|': {
+                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_OR_EQUAL);
+                    make_token(tokenizer, start, TOKEN_KIND_OR_EQUAL);
                 } else if(match(tokenizer, '|')) {
-                    make_token(tokenizer, tokenizer->at -1, TOKEN_KIND_OR_OR);
+                    make_token(tokenizer, start, TOKEN_KIND_OR_OR);
                 } else {
-                    make_token(tokenizer, tokenizer->at -1, '|');
+                    make_token(tokenizer, start, '|');
                 }
-                break;
-            case '^':
+            } break;
+            case '^': {
+                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_XOR_EQUAL);
+                    make_token(tokenizer, start, TOKEN_KIND_XOR_EQUAL);
                 } else {
-                    make_token(tokenizer, tokenizer->at - 1, '^');
+                    make_token(tokenizer, start, '^');
                 }
-                break;
-            case '&':
+            } break;
+            case '&': {
+                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_AND_EQUAL);
+                    make_token(tokenizer, start, TOKEN_KIND_AND_EQUAL);
                 } else if(match(tokenizer, '&')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_AND_AND);
+                    make_token(tokenizer, start, TOKEN_KIND_AND_AND);
                 } else {
-                    make_token(tokenizer, tokenizer->at - 1, '&');
+                    make_token(tokenizer, start, '&');
                 }
-                break;
-            case '+':
+            } break;
+            case '+': {
+                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_PLUS_EQUAL);
+                    make_token(tokenizer, start, TOKEN_KIND_PLUS_EQUAL);
                 } else if(match(tokenizer, '+')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_PLUS_PLUS);
+                    make_token(tokenizer, start, TOKEN_KIND_PLUS_PLUS);
                 } else {
-                    make_token(tokenizer, tokenizer->at - 1, '+');
+                    make_token(tokenizer, start, '+');
                 }
-                break;
-            case '-':
+            } break;
+            case '-': {
+                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_MINUS_EQUAL);
+                    make_token(tokenizer, start, TOKEN_KIND_MINUS_EQUAL);
                 } else if(match(tokenizer, '>')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_RIGHT_ARROW);
+                    make_token(tokenizer, start, TOKEN_KIND_RIGHT_ARROW);
                 } else if(match(tokenizer, '-')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_MINUS_MINUS);
+                    make_token(tokenizer, start, TOKEN_KIND_MINUS_MINUS);
                 } else {
-                    make_token(tokenizer, tokenizer->at - 1, '-');
+                    make_token(tokenizer, start, '-');
                 }
-                break;
-            case '/':
+            } break;
+            case '/': {
+                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_DIVIDE_EQUAL);
+                    make_token(tokenizer, start, TOKEN_KIND_DIVIDE_EQUAL);
                 } else if(match(tokenizer, '/')) {
                     while(1) {
                         u8 ch = eat_char(tokenizer);
@@ -660,39 +670,43 @@ void tokenize(tokenizer *tokenizer) {
                         }
                     }
                 } else {
-                    make_token(tokenizer, tokenizer->at - 1, '/');
+                    make_token(tokenizer, start, '/');
                 }
-                break;
-            case '%':
+            } break;
+            case '%': {
+                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_MOD_EQUAL);
+                    make_token(tokenizer, start, TOKEN_KIND_MOD_EQUAL);
                 } else {
-                    make_token(tokenizer, tokenizer->at - 1, '%');
+                    make_token(tokenizer, start, '%');
                 }
-                break;
-            case '*':
+            } break;
+            case '*': {
+                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_MULTIPLY_EQUAL);
+                    make_token(tokenizer, start, TOKEN_KIND_MULTIPLY_EQUAL);
                 } else {
-                    make_token(tokenizer, tokenizer->at - 1, '*');
+                    make_token(tokenizer, start, '*');
                 }
-                break;
-            case ':':
+            } break;
+            case ':': {
+                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, ':')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_COLON_COLON);
+                    make_token(tokenizer, start, TOKEN_KIND_COLON_COLON);
                 } else if(match(tokenizer, '=')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_COLON_EQUAL);
+                    make_token(tokenizer, start, TOKEN_KIND_COLON_EQUAL);
                 } else {
-                    make_token(tokenizer, tokenizer->at - 1, ':');
+                    make_token(tokenizer, start, ':');
                 }
-                break;
-            case '.':
+            } break;
+            case '.': {
+                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '.')) {
-                    make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_DOT_DOT);
+                    make_token(tokenizer, start, TOKEN_KIND_DOT_DOT);
                 } else {
-                    make_token(tokenizer, tokenizer->at - 1, '.');
+                    make_token(tokenizer, start, '.');
                 }
-                break;
+            } break;
             default: {
                 u8 *ident_start = tokenizer->at - 1;
                 if(is_alpha(*ident_start)) { /* we found a potential ident */
