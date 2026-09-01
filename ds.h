@@ -649,6 +649,13 @@ DSAPI f64 str_to_f64(string8 str);
 /* convert a string to a c string */
 DSAPI const char *str_to_cstr(mem_arena *arena, string8 str);
 
+/* convert between different string types */
+DSAPI string8 str8_from_str16();
+DSAPI string16 str16_from_str8();
+
+DSAPI string8 str8_from_str32();
+DSAPI string16 str32_from_str8();
+
 DSAPI string_builder sb_create(mem_arena *arena);
 DSAPI string8 sb_append(string_builder *sb, string8 str);
 DSAPI string8 sb_appendf(string_builder *sb, const char *fmt, ...);

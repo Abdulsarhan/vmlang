@@ -446,6 +446,7 @@ source_location get_source_location_from_token(tokenizer *tokenizer, u32 token_i
 void tokenize(tokenizer *tokenizer) {
     while((tokenizer->at < tokenizer->end)) {
         eat_all_whitespaces(tokenizer);
+        u8 *token_start = tokenizer->at;
         switch(eat_char(tokenizer)) {
             case '\0':
                 // if we need to peek ahead more than one token in
@@ -454,7 +455,7 @@ void tokenize(tokenizer *tokenizer) {
                 // guarunteed to return the sentinel instead of going
                 // past the end since peek_token() and friends do no bounds
                 // checking for performance reasons.
-                make_token(tokenizer, tokenizer->at - 1, TOKEN_KIND_END_OF_STREAM);
+                make_token(tokenizer, token_start, TOKEN_KIND_END_OF_STREAM);
                 break;
             case '(':
             case ')':
@@ -465,12 +466,13 @@ void tokenize(tokenizer *tokenizer) {
             case '#':
             case '~':
             case ';':
-            case ',':
-                make_token(tokenizer, tokenizer->at - 1, *(tokenizer->at - 1));
-                break;
+            case ',': {
+                make_token(tokenizer, token_start, *(token_start));
+            } break;
             case '\'': {
                 // this is where we detect malformed char literals.
                 // if a char literal is malformed, we make an error token.
+                // otherwise, we make a char literal token.
                 b32 error = false;
                 u8 *checkpoint = tokenizer->at;
                 if(match(tokenizer, '\\')) {
@@ -491,15 +493,12 @@ void tokenize(tokenizer *tokenizer) {
                     tok_report_error(tokenizer, "Error: missing closing quote to terminate char literal");
                         error = true;
                 }
-                // char literal tokens start AFTER the first quote. We can bring back the quote
-                // to print this token if we need to, but as far as the parser and type checker
-                // are concerned, we don't need the quotes.
                 make_token(tokenizer, checkpoint, error ? TOKEN_KIND_ERROR : TOKEN_KIND_CHAR_LITERAL);
-                break;
-            }
-            case '"': /* TODO: Handle escaping inside of string literals */
+            } break;
+            case '"': {/* TODO: Handle escaping inside of string literals */
                 // this is where we detect malformed string literals.
                 // if a string literal is malformed, we make an error token.
+                // otherwise, we make a string literal token.
                 u8 *string_start = tokenizer->at;
                 b32 error = false;
 
@@ -512,11 +511,8 @@ void tokenize(tokenizer *tokenizer) {
                 }
 
                 eat_char(tokenizer);
-                // string literal tokens start AFTER the first quote. We can bring back the quote
-                // to print this token if we need to, but as far as the parser and type checker
-                // are concerned, we don't need the quotes.
                 make_token(tokenizer, string_start, error ? TOKEN_KIND_ERROR : TOKEN_KIND_STRING_LITERAL);
-                break;
+            } break;
             case '0':
             case '1':
             case '2':
@@ -527,7 +523,6 @@ void tokenize(tokenizer *tokenizer) {
             case '7':
             case '8':
             case '9': {
-                u8 *start = tokenizer->at - 1;  // the digit already eaten by the switch
                 b32 found_decimal = false;
                 b32 is_float = false;
                 while(tokenizer->at < tokenizer->end) {
@@ -547,110 +542,99 @@ void tokenize(tokenizer *tokenizer) {
                     eat_char(tokenizer);
                 }
                 if(is_float) {
-                    make_token(tokenizer, start, TOKEN_KIND_FLOAT_LITERAL);
+                    make_token(tokenizer, token_start, TOKEN_KIND_FLOAT_LITERAL);
                 } else {
-                    make_token(tokenizer, start, TOKEN_KIND_INT_LITERAL);
+                    make_token(tokenizer, token_start, TOKEN_KIND_INT_LITERAL);
                 }
-                break;
-            }
+            } break;
             case '>': {
-                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, start, TOKEN_KIND_GREATER_THAN_EQUAL);
+                    make_token(tokenizer, token_start, TOKEN_KIND_GREATER_THAN_EQUAL);
                 } else if (match(tokenizer, '>')) {
                     if(match(tokenizer, '=')) {
-                        make_token(tokenizer, start, TOKEN_KIND_RIGHT_SHIFT_EQUAL);
+                        make_token(tokenizer, token_start, TOKEN_KIND_RIGHT_SHIFT_EQUAL);
                     } else {
-                        make_token(tokenizer, start, TOKEN_KIND_RIGHT_SHIFT);
+                        make_token(tokenizer, token_start, TOKEN_KIND_RIGHT_SHIFT);
                     }
                 } else {
-                    make_token(tokenizer, start, '>');
+                    make_token(tokenizer, token_start, '>');
                 }
             } break;
             case '<': {
-                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, start, TOKEN_KIND_LESS_THAN_EQUAL);
+                    make_token(tokenizer, token_start, TOKEN_KIND_LESS_THAN_EQUAL);
                 } else if (match(tokenizer, '<')) {
                     if(match(tokenizer, '=')) {
-                        make_token(tokenizer, start, TOKEN_KIND_LEFT_SHIFT_EQUAL);
+                        make_token(tokenizer, token_start, TOKEN_KIND_LEFT_SHIFT_EQUAL);
                     } else {
-                        make_token(tokenizer, start, TOKEN_KIND_LEFT_SHIFT);
+                        make_token(tokenizer, token_start, TOKEN_KIND_LEFT_SHIFT);
                     }
                 } else {
-                    make_token(tokenizer, start, '<');
+                    make_token(tokenizer, token_start, '<');
                 }
             } break;
             case '!': {
-                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, start, TOKEN_KIND_NOT_EQUAL);
+                    make_token(tokenizer, token_start, TOKEN_KIND_NOT_EQUAL);
                 } else {
-                    make_token(tokenizer, start, '!');
+                    make_token(tokenizer, token_start, '!');
                 }
             } break;
             case '=': {
-                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, start, TOKEN_KIND_EQUAL_EQUAL);
+                    make_token(tokenizer, token_start, TOKEN_KIND_EQUAL_EQUAL);
                 } else {
-                    make_token(tokenizer, start, '=');
+                    make_token(tokenizer, token_start, '=');
                 }
             } break;
             case '|': {
-                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, start, TOKEN_KIND_OR_EQUAL);
+                    make_token(tokenizer, token_start, TOKEN_KIND_OR_EQUAL);
                 } else if(match(tokenizer, '|')) {
-                    make_token(tokenizer, start, TOKEN_KIND_OR_OR);
+                    make_token(tokenizer, token_start, TOKEN_KIND_OR_OR);
                 } else {
-                    make_token(tokenizer, start, '|');
+                    make_token(tokenizer, token_start, '|');
                 }
             } break;
             case '^': {
-                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, start, TOKEN_KIND_XOR_EQUAL);
+                    make_token(tokenizer, token_start, TOKEN_KIND_XOR_EQUAL);
                 } else {
-                    make_token(tokenizer, start, '^');
+                    make_token(tokenizer, token_start, '^');
                 }
             } break;
             case '&': {
-                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, start, TOKEN_KIND_AND_EQUAL);
+                    make_token(tokenizer, token_start, TOKEN_KIND_AND_EQUAL);
                 } else if(match(tokenizer, '&')) {
-                    make_token(tokenizer, start, TOKEN_KIND_AND_AND);
+                    make_token(tokenizer, token_start, TOKEN_KIND_AND_AND);
                 } else {
-                    make_token(tokenizer, start, '&');
+                    make_token(tokenizer, token_start, '&');
                 }
             } break;
             case '+': {
-                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, start, TOKEN_KIND_PLUS_EQUAL);
+                    make_token(tokenizer, token_start, TOKEN_KIND_PLUS_EQUAL);
                 } else if(match(tokenizer, '+')) {
-                    make_token(tokenizer, start, TOKEN_KIND_PLUS_PLUS);
+                    make_token(tokenizer, token_start, TOKEN_KIND_PLUS_PLUS);
                 } else {
-                    make_token(tokenizer, start, '+');
+                    make_token(tokenizer, token_start, '+');
                 }
             } break;
             case '-': {
-                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, start, TOKEN_KIND_MINUS_EQUAL);
+                    make_token(tokenizer, token_start, TOKEN_KIND_MINUS_EQUAL);
                 } else if(match(tokenizer, '>')) {
-                    make_token(tokenizer, start, TOKEN_KIND_RIGHT_ARROW);
+                    make_token(tokenizer, token_start, TOKEN_KIND_RIGHT_ARROW);
                 } else if(match(tokenizer, '-')) {
-                    make_token(tokenizer, start, TOKEN_KIND_MINUS_MINUS);
+                    make_token(tokenizer, token_start, TOKEN_KIND_MINUS_MINUS);
                 } else {
-                    make_token(tokenizer, start, '-');
+                    make_token(tokenizer, token_start, '-');
                 }
             } break;
             case '/': {
-                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, start, TOKEN_KIND_DIVIDE_EQUAL);
+                    make_token(tokenizer, token_start, TOKEN_KIND_DIVIDE_EQUAL);
                 } else if(match(tokenizer, '/')) {
                     while(1) {
                         u8 ch = eat_char(tokenizer);
@@ -670,45 +654,41 @@ void tokenize(tokenizer *tokenizer) {
                         }
                     }
                 } else {
-                    make_token(tokenizer, start, '/');
+                    make_token(tokenizer, token_start, '/');
                 }
             } break;
             case '%': {
-                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, start, TOKEN_KIND_MOD_EQUAL);
+                    make_token(tokenizer, token_start, TOKEN_KIND_MOD_EQUAL);
                 } else {
-                    make_token(tokenizer, start, '%');
+                    make_token(tokenizer, token_start, '%');
                 }
             } break;
             case '*': {
-                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '=')) {
-                    make_token(tokenizer, start, TOKEN_KIND_MULTIPLY_EQUAL);
+                    make_token(tokenizer, token_start, TOKEN_KIND_MULTIPLY_EQUAL);
                 } else {
-                    make_token(tokenizer, start, '*');
+                    make_token(tokenizer, token_start, '*');
                 }
             } break;
             case ':': {
-                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, ':')) {
-                    make_token(tokenizer, start, TOKEN_KIND_COLON_COLON);
+                    make_token(tokenizer, token_start, TOKEN_KIND_COLON_COLON);
                 } else if(match(tokenizer, '=')) {
-                    make_token(tokenizer, start, TOKEN_KIND_COLON_EQUAL);
+                    make_token(tokenizer, token_start, TOKEN_KIND_COLON_EQUAL);
                 } else {
-                    make_token(tokenizer, start, ':');
+                    make_token(tokenizer, token_start, ':');
                 }
             } break;
             case '.': {
-                u8 *start = tokenizer->at - 1;
                 if(match(tokenizer, '.')) {
-                    make_token(tokenizer, start, TOKEN_KIND_DOT_DOT);
+                    make_token(tokenizer, token_start, TOKEN_KIND_DOT_DOT);
                 } else {
-                    make_token(tokenizer, start, '.');
+                    make_token(tokenizer, token_start, '.');
                 }
             } break;
             default: {
-                u8 *ident_start = tokenizer->at - 1;
+                u8 *ident_start = token_start;
                 if(is_alpha(*ident_start)) { /* we found a potential ident */
                     i32 ident_len = 1;
                     while(tokenizer->at < tokenizer->end) {
@@ -782,8 +762,7 @@ void tokenize(tokenizer *tokenizer) {
                 } else {
                     tok_report_error(tokenizer, "Error: Unexpected character:\n");
                 }
-                break;
-            }
+            } break;
         }
     }
 }

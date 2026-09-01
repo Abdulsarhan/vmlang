@@ -1,12 +1,9 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define DS_IMPLEMENTATION
 #include "ds.h"
-
-#define PAL_IMPLEMENTATION
-#include "pal.h"
-
 #undef DS_IMPLEMENTATION
-#undef PAL_IMPLEMENTATION
+
+#include "platform.h"
 
 #include "tokenizer.h"
 #include "parser.h"
@@ -14,6 +11,14 @@
 #include "pretty_printing.h"
 #include "writer.h"
 #include "codegen.h"
+
+#ifdef OS_WINDOWS
+#include "win32_platform.c"
+#elif OS_LINUX
+#include "linux_platform.c"
+#elif OS_MAC
+#include "mac_platform.c"
+#endif
 
 #include "tokenizer.c"
 #include "parser.c"
@@ -28,18 +33,18 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    u64 file_size = 0;
-    u8 *file = pal_read_entire_file(argv[1], &file_size);
-    assert(file);
-
     mem_arena *arena = arena_init(gibibytes(1));
     assert(arena);
 
+    string8 file = read_entire_file(arena, (string8){.data = (u8*)argv[1], .length = strlen(argv[1])});
+    assert(file.data);
+
+
     tokenizer tokenizer;
     memory_zero(&tokenizer, sizeof(tokenizer));
-    tokenizer.file = file;
-    tokenizer.at = file;
-    tokenizer.end = file + file_size;
+    tokenizer.file = file.data;
+    tokenizer.at = file.data;
+    tokenizer.end = file.data + file.length;
     da_reserve(tokenizer.token_kinds, sizeof(token_kind) * 16384);
     da_reserve(tokenizer.token_positions, sizeof(u32) * 16384);
     assert(tokenizer.token_kinds);

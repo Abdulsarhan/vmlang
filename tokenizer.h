@@ -74,7 +74,7 @@ struct tokenizer {
     u8 *at;
     u8 *end;
 
-    // token data, as a struct of arrays.
+    // tokens, as a struct of arrays.
     u32 *token_positions;
     token_kind *token_kinds;
 

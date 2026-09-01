@@ -3,8 +3,8 @@
 
 #include "ds.h"
 
-#define TWOCC(x)((uint16_t)(x[1] << 8 | x[0]))
-#define FOURCC(x)((uint32_t)(x[3] << 24 | x[2] << 16 | x[1] << 8 | x[0]))
+#define TWOCC(x)((u16)(x[1] << 8 | x[0]))
+#define FOURCC(x)((u32)(x[3] << 24 | x[2] << 16 | x[1] << 8 | x[0]))
 
 typedef struct exe_writer exe_writer;
 struct exe_writer {

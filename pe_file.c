@@ -4,7 +4,7 @@
 #include "pe_file.h"
 #include "writer.h"
 #include "ds.h"
-#include "pal.h"
+#include "platform.h"
 
 #define IMAGE_BASE_32 0x000400000
 #define IMAGE_BASE_64 0x140000000
@@ -216,11 +216,11 @@ typedef enum encoding_form {
 
 typedef struct instruction_form instruction_form;
 struct instruction_form {
-    uint8_t  opcode[3];
-    uint8_t  opcode_len;
-    uint8_t  opcode_ext;   // ModRM.reg extension for /digit forms, e.g. SUB = 5
+    u8  opcode[3];
+    u8  opcode_len;
+    u8  opcode_ext;   // ModRM.reg extension for /digit forms, e.g. SUB = 5
     encoding_form  form;
-    uint8_t  imm_size;     // 0, 1, 2, 4, or 8
+    u8  imm_size;     // 0, 1, 2, 4, or 8
     b32     needs_rexw;
 };
 
@@ -934,5 +934,5 @@ void generate_pe_file(mem_arena *arena, string8 output_path, generated_code *cod
         output_path = sb_append(&exe_path_builder, s(".exe"));
     }
 
-    pal_write_file(pe_writer.buffer, pe_writer.at, str_to_cstr(arena, output_path));
+    write_entire_file(arena, output_path, pe_writer.buffer, pe_writer.at);
 }

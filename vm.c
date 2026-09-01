@@ -1,12 +1,9 @@
 #include <stdio.h>
 #define DS_IMPLEMENTATION
 #include "ds.h"
-
-#define PAL_IMPLEMENTATION
-#include "pal.h"
-
 #undef DS_IMPLEMENTATION
-#undef PAL_IMPLEMENTATION
+
+#include "platform.h"
 
 typedef struct decoder decoder;
 struct decoder {
@@ -40,12 +37,14 @@ instruction get_instruction(decoder *decoder) {
 int main(int argc, char **argv) {
 
     u64 file_size;
-    unsigned char *instructions = pal_read_entire_file("main.bc", &file_size);
+    mem_arena *arena = arena_init(gibibytes(1));
+
+    string8 file = read_entire_file(arena, s("main.bc"));
+    u8 *instructions = file.data;
 
     decoder dcoder = {0};
     dcoder.at = instructions;
-    dcoder.end = instructions + file_size;
-
+    dcoder.end = instructions + file.length;
 
     return 0;
 }

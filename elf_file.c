@@ -1,6 +1,6 @@
 #include "elf_file.h"
 #include "writer.h"
-#include "pal.h"
+#include "platform.h"
 
 #define osabi_sysv 0x0
 
@@ -185,5 +185,5 @@ void generate_elf_file(ast_node *root, string8 output_path, generated_code *code
     }
 #endif
 
-    pal_write_file(elf_writer.buffer, elf_writer.at, str_to_cstr(arena, output_path));
+    write_entire_file(arena, output_path, elf_writer.buffer, elf_writer.at);
 }
